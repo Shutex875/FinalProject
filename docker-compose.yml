@@ -16,15 +16,23 @@ services:
     volumes:
       - ./server/dev.db:/app/dev.db
     restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   client:
     build: ./client
     ports:
       - "3000:80"
     volumes:
-      - ./client/public/images:/usr/share/nginx/html/images   # ← уже добавили
+      - ./client/public/images:/usr/share/nginx/html/images
     depends_on:
       - server
     environment:
-      - REACT_APP_API_URL=http://13.38.76.64:5000/api
+      - REACT_APP_API_URL=/api
     restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
