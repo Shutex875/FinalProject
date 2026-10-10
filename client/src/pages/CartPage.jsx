@@ -9,7 +9,7 @@ import { useAuth } from '../AuthContext';
 const { Title, Text } = Typography;
 
 export default function CartPage() {
-  const { cartItems, removeFromCart, updateQuantity, cartTotal, clearCart } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, cartTotal } = useCart();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { token } = useAuth();

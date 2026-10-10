@@ -142,7 +142,7 @@ export const reviewsApi = {
     deleteReview: (id) => instance.delete(`/reviews/${id}`),
 };
 
-export default {
+const api = {
     authApi,
     productsApi,
     templatesApi,
@@ -156,3 +156,5 @@ export default {
     setAccessToken,
     getAccessToken
 };
+
+export default api;

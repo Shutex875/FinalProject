@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Row, Col, Card, Typography, Tag, Skeleton, Input, Button, Space, Empty
+  Row, Col, Card, Typography, Skeleton, Input, Button, Empty
 } from 'antd';
-import { SearchOutlined, ShoppingCartOutlined, FireOutlined, RocketOutlined } from '@ant-design/icons';
+import { SearchOutlined, ShoppingCartOutlined, FireOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { productsApi, tagsApi } from '../api';
-import { useAuth } from '../AuthContext';
+import { productsApi } from '../api';
 import { useTranslation } from 'react-i18next';
 import './css/HomePage.css';
 
@@ -13,11 +12,9 @@ const { Title, Text } = Typography;
 
 export default function HomePage() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
-  const [popularTags, setPopularTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -25,13 +22,8 @@ export default function HomePage() {
     const fetchHomeData = async () => {
       try {
         setLoading(true);
-        const [latestRes, tagsRes] = await Promise.all([
-          productsApi.getAll({ page: 1, limit: 8 }),                                                                                                            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          tagsApi.getPopularTags(10).catch(() => [])                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ]);
-
+        const latestRes = await productsApi.getAll({ page: 1, limit: 8 });
         setProducts(latestRes?.data || []);
-        setPopularTags(tagsRes || []);
       } catch (err) {
         console.error('Data loading error:', err);
       } finally {
