@@ -64,8 +64,8 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const initAuth = async () => {
             try {
-                const response = await axios.post('/api/auth/refresh', {}, {
-                    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+                const response = await axios.post('/auth/refresh', {}, {
+                    baseURL: process.env.REACT_APP_API_URL || 'http://13.38.76.64:5000',
                     withCredentials: true
                 });
                 if (response.data?.token) {
@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
-        updateUser, 
+        updateUser,
         isAuthenticated: !!token,
         isAdmin: user?.role === 'ADMIN'
     };
