@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Table, Card, Typography, Space, Input, Button,
-  Row, Col, Select, Tag, Popconfirm, message, Avatar, Tabs, InputNumber, Modal, Form, Upload
+  Table, Typography, Space, Input, Button,
+  Row, Col, Select, Tag, Popconfirm, message, Tabs, InputNumber, Modal, Form, Upload
 } from 'antd';
 import {
   UserSwitchOutlined, SearchOutlined, ReloadOutlined,
@@ -212,6 +212,9 @@ export default function AdminPanel() {
     }
   };
 
+  // Load initial admin data once when the panel mounts.
+  // These functions are also used by event handlers for subsequent refreshes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchUsers();
     fetchProducts();
