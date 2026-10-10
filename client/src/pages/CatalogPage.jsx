@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Layout, Row, Col, Card, Input, Select, Typography, Button, Breadcrumb, Skeleton, Empty, Tag, message, Slider, Pagination } from 'antd';
 import { SearchOutlined, ShoppingCartOutlined, FilterOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -42,11 +42,7 @@ export default function CatalogPage() {
     setPageSize(params.has('limit') ? Number(params.get('limit')) : 12);
   }, [location.search]);
 
-  useEffect(() => {                                                                                   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    fetchProducts();
-  }, [location.search]);
-
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams(location.search);
@@ -70,7 +66,11 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [location.search, t]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleFilterChange = (key, value) => {                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     const params = new URLSearchParams(location.search);
