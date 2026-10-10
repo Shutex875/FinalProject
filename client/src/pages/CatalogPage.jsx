@@ -42,7 +42,7 @@ export default function CatalogPage() {
     setPageSize(params.has('limit') ? Number(params.get('limit')) : 12);
   }, [location.search]);
 
-  useEffect(() => {
+  useEffect(() => {                                                                                   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     fetchProducts();
   }, [location.search]);
 
@@ -72,7 +72,7 @@ export default function CatalogPage() {
     }
   };
 
-  const handleFilterChange = (key, value) => {
+  const handleFilterChange = (key, value) => {                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     const params = new URLSearchParams(location.search);
     if (value !== undefined && value !== null && value !== '') {
       params.set(key, value);
@@ -80,7 +80,7 @@ export default function CatalogPage() {
       params.delete(key);
     }
     params.delete('page');
-    navigate(`/catalog?${params.toString()}`);
+    navigate(`/catalog?${params.toString()}`);                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   };
 
   const handlePriceChange = (values) => {

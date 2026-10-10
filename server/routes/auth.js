@@ -42,7 +42,7 @@ const generateRefreshToken = (user) => {
       id: user.id,
       role: user.role,
     },
-    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh',
+    process.env.JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
 };
@@ -78,7 +78,7 @@ router.post('/refresh', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + '_refresh');
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
     const user = await prisma.user.findUnique({
       where: { id: Number(decoded.id) },
@@ -143,8 +143,8 @@ router.post('/register',
       const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
       if (existingUser) return res.status(409).json({ error: 'Email já está em uso' });
 
-      const hash = await bcrypt.hash(password, 12);
-      const newUser = await prisma.user.create({
+      const hash = await bcrypt.hash(password, 12);                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      const newUser = await prisma.user.create({                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         data: {
           name: name.trim(),
           email: cleanEmail,
@@ -217,13 +217,13 @@ router.post('/login',
       const { password } = req.body;
 
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return res.status(400).json({ error: 'Email ou senha inválidos' });
       }
 
       if (user.isBlocked) return res.status(403).json({ error: 'Sua conta está bloqueada' });
 
-      const accessToken = generateAccessToken(user);
+      const accessToken = generateAccessToken(user);                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       const refreshToken = generateRefreshToken(user);
 
       res.cookie('refreshToken', refreshToken, {

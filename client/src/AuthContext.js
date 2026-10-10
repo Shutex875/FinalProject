@@ -7,7 +7,7 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [token, setTokenState] = useState(null);
-    const [user, setUser] = useState(null);
+    const [user, setUser] = useState(null);                                                                                                                  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     const [loading, setLoading] = useState(true);
 
     const setToken = useCallback((newToken) => {
@@ -86,14 +86,14 @@ export const AuthProvider = ({ children }) => {
         initAuth();
     }, [setToken]);
 
-    const value = {
+    const value = {                                                                                                                                                //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         token,
         user,
         loading,
         login,
         register,
         logout,
-        updateUser,   // добавлено
+        updateUser, 
         isAuthenticated: !!token,
         isAdmin: user?.role === 'ADMIN'
     };
