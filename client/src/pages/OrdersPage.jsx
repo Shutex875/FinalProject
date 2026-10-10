@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Card, Typography, Space, Tag, Spin, Empty, message } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Table, Typography, Tag, Spin, Empty, message } from 'antd';
 import { useAuth } from '../AuthContext';
 import { ordersApi } from '../api';
 import { useTranslation } from 'react-i18next';
@@ -12,13 +12,7 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (token) {
-      fetchOrders();
-    }
-  }, [token]);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
       const data = await ordersApi.getMyOrders();
@@ -29,7 +23,13 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    if (token) {
+      fetchOrders();
+    }
+  }, [token, fetchOrders]);
 
   const getStatusText = (status) => {
     switch (status) {
