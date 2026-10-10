@@ -214,12 +214,12 @@ export default function AdminPanel() {
 
   // Load initial admin data once when the panel mounts.
   // These functions are also used by event handlers for subsequent refreshes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchUsers();
     fetchProducts();
     fetchOrders();
     fetchCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ==================== РАЗВОРАЧИВАЮЩАЯСЯ СТРОКА ЗАКАЗА ====================
