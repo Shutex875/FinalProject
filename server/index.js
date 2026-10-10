@@ -20,6 +20,10 @@ import cartRoutes from './routes/cart.js';
 import { setupSwagger } from './swagger.js';
 
 dotenv.config();
+if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  console.error("Ошибка авторизации");
+  process.exit(1);
+}
 const app = express();
 const server = http.createServer(app);
 
@@ -49,11 +53,11 @@ app.use((req, res, next) => {
   next();
 });
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200
-});
-app.use('/api/', limiter);
+//const limiter = rateLimit({
+//  windowMs: 15 * 60 * 1000,
+//  max: 200
+//});
+//app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 
 setupSwagger(app);

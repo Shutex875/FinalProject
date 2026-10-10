@@ -21,13 +21,13 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
+  useEffect(() => {                                                                                                                                              //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     const fetchHomeData = async () => {
       try {
         setLoading(true);
         const [latestRes, tagsRes] = await Promise.all([
-          productsApi.getAll({ page: 1, limit: 8 }),
-          tagsApi.getPopularTags(10).catch(() => [])
+          productsApi.getAll({ page: 1, limit: 8 }),                                                                                                            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          tagsApi.getPopularTags(10).catch(() => [])                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ]);
 
         setProducts(latestRes?.data || []);

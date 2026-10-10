@@ -1,4 +1,11 @@
 {
+  "likes": {
+    "like": "Gostar",
+    "unlike": "Remover gosto",
+    "loginRequired": "Faça login para adicionar aos favoritos",
+    "added": "Adicionado aos favoritos",
+    "updateError": "Falha ao atualizar status"
+  },
   "cart": {
     "product": "Produto",
     "price": "Preço",

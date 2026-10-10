@@ -1,4 +1,11 @@
 {
+  "likes": {
+    "like": "Like",
+    "unlike": "Unlike",
+    "loginRequired": "Please login to add to favorites",
+    "added": "Added to favorites",
+    "updateError": "Failed to update status"
+  },
   "cart": {
     "product": "Product",
     "price": "Price",
