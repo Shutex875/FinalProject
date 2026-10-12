@@ -17,7 +17,10 @@ async function main() {
   console.log('🧹 Banco de dados limpo...');
 
   // Администратор
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    throw new Error("ADMIN_PASSWORD environment variable is required!");
+  }
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
   await prisma.user.create({
     data: {
