@@ -8,20 +8,22 @@ datasource db {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  email        String    @unique
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
   name         String?
   passwordHash String?
   role         String?   @default("CUSTOMER")
   avatar       String?
   isBlocked    Boolean?  @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  language     String   @default("en") // Сохраненный язык (например, 'en', 'ru', 'pt')
+  theme        String   @default("light") // Сохраненная тема ('light' или 'dark')
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   orders       Order[]
   reviews      Review[]
   likes        Like[]
-  cartItems    CartItem[] // добавлено
+  cartItems    CartItem[]
 }
 
 model Product {
