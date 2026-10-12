@@ -56,13 +56,14 @@ const generateRefreshToken = (user) => {
  *     description: Use refresh token from httpOnly cookie to get a new access token
  *     responses:
  *       200:
- *         description: New access token
+ *         description: New access token and user data
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
  *                 token: { type: string }
+ *                 user: { type: object }
  *       401:
  *         description: Refresh token missing or invalid
  *       403:
@@ -82,14 +83,25 @@ router.post('/refresh', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: Number(decoded.id) },
-      select: { id: true, role: true, name: true, email: true, isBlocked: true }
+      select: { id: true, role: true, name: true, email: true, isBlocked: true, avatar: true, language: true, theme: true }
     });
 
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
     if (user.isBlocked) return res.status(403).json({ error: 'Conta bloqueada' });
 
     const newAccessToken = generateAccessToken(user);
-    res.json({ token: newAccessToken });
+    res.json({
+      token: newAccessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        language: user.language,
+        theme: user.theme
+      }
+    });
   } catch (err) {
     console.error('Erro ao atualizar token:', err);
     res.status(401).json({ error: 'Refresh token inválido' });
@@ -113,16 +125,11 @@ router.post('/refresh', async (req, res) => {
  *               name: { type: string, minLength: 2 }
  *               email: { type: string, format: email }
  *               password: { type: string, minLength: 8 }
+ *               language: { type: string }
+ *               theme: { type: string }
  *     responses:
  *       201:
  *         description: User created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 token: { type: string }
- *                 user: { type: object }
  *       400:
  *         description: Validation error
  *       409:
@@ -137,19 +144,21 @@ router.post('/register',
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { name, email, password } = req.body;
+      const { name, email, password, language, theme } = req.body;
       const cleanEmail = email.trim().toLowerCase();
 
       const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
       if (existingUser) return res.status(409).json({ error: 'Email já está em uso' });
 
-      const hash = await bcrypt.hash(password, 12);                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      const newUser = await prisma.user.create({                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      const hash = await bcrypt.hash(password, 12);
+      const newUser = await prisma.user.create({
         data: {
           name: name.trim(),
           email: cleanEmail,
           passwordHash: hash,
-          role: 'CUSTOMER'
+          role: 'CUSTOMER',
+          ...(language && { language }),
+          ...(theme && { theme }),
         },
       });
 
@@ -165,7 +174,15 @@ router.post('/register',
 
       res.status(201).json({
         token: accessToken,
-        user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          avatar: newUser.avatar,
+          language: newUser.language,
+          theme: newUser.theme
+        },
       });
     } catch (e) {
       console.error('Erro ao registrar:', e);
@@ -193,13 +210,6 @@ router.post('/register',
  *     responses:
  *       200:
  *         description: Login successful
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 token: { type: string }
- *                 user: { type: object }
  *       400:
  *         description: Invalid email or password
  *       403:
@@ -217,13 +227,13 @@ router.post('/login',
       const { password } = req.body;
 
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
         return res.status(400).json({ error: 'Email ou senha inválidos' });
       }
 
       if (user.isBlocked) return res.status(403).json({ error: 'Sua conta está bloqueada' });
 
-      const accessToken = generateAccessToken(user);                                                                                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      const accessToken = generateAccessToken(user);
       const refreshToken = generateRefreshToken(user);
 
       res.cookie('refreshToken', refreshToken, {
@@ -235,7 +245,15 @@ router.post('/login',
 
       res.json({
         token: accessToken,
-        user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          language: user.language,
+          theme: user.theme
+        },
       });
     } catch (e) {
       console.error('Erro ao fazer login:', e);
@@ -255,8 +273,6 @@ router.post('/login',
  *     responses:
  *       200:
  *         description: Logout successful
- *       500:
- *         description: Server error
  */
 router.post('/logout', authMiddleware, (req, res) => {
   res.clearCookie('refreshToken', {
@@ -284,15 +300,13 @@ router.post('/logout', authMiddleware, (req, res) => {
  *             properties:
  *               name: { type: string, minLength: 2 }
  *               avatar: { type: string }
+ *               language: { type: string }
+ *               theme: { type: string }
  *               password: { type: string }
  *               newPassword: { type: string, minLength: 8 }
  *     responses:
  *       200:
  *         description: Profile updated
- *       400:
- *         description: Validation error or current password incorrect
- *       500:
- *         description: Server error
  */
 router.put('/profile',
   authMiddleware,
@@ -301,12 +315,14 @@ router.put('/profile',
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { name, avatar, password, newPassword } = req.body;
+      const { name, avatar, language, theme, password, newPassword } = req.body;
       const userId = req.user.id;
       const updates = {};
 
       if (name) updates.name = name.trim();
-      if (avatar) updates.avatar = avatar;
+      if (avatar !== undefined) updates.avatar = avatar;
+      if (language !== undefined) updates.language = language;
+      if (theme !== undefined) updates.theme = theme;
 
       if (password && newPassword) {
         const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -319,7 +335,7 @@ router.put('/profile',
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: updates,
-        select: { id: true, name: true, email: true, role: true, avatar: true }
+        select: { id: true, name: true, email: true, role: true, avatar: true, language: true, theme: true }
       });
 
       res.json({
@@ -344,8 +360,6 @@ router.put('/profile',
  *     responses:
  *       200:
  *         description: Account deleted
- *       500:
- *         description: Server error
  */
 router.delete('/profile', authMiddleware, async (req, res) => {
   try {
