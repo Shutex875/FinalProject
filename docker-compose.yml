@@ -1,11 +1,23 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
   server:
     build: ./server
     ports:
       - "5000:5000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:/app/dev.db
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       - PORT=5000
       - CLIENT_URL=http://13.38.76.64:3000
       - JWT_SECRET=${JWT_SECRET}
@@ -13,8 +25,8 @@ services:
       - JWT_ISSUER=ExtremeGearShop
       - JWT_AUDIENCE=client
       - JWT_EXPIRES_IN=15m
-    volumes:
-      - ./server/dev.db:/app/dev.db
+    depends_on:
+      - postgres
     restart: unless-stopped
     logging:
       options:
@@ -36,3 +48,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  postgres_data:
