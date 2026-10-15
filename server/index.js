@@ -79,13 +79,14 @@ app.get('/api/healthcheck', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Extreme Gear Shop' });
 });
 
-// ========== REMOVIDO: bloco de estática do frontend ==========
-// app.use(express.static(path.join(__dirname, '../client/build')));
-// app.get('*', (req, res) => {
-//   if (!req.path.startsWith('/api')) {
-//     res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-//   }
-// });
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+    }
+  });
+}
 
 io.on('connection', (socket) => {
   console.log('🔌 Novo cliente conectado');
