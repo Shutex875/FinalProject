@@ -19,7 +19,6 @@ export const AuthProvider = ({ children }) => {
         }
         return null;
     });
-    const [loading, setLoading] = useState(false); // Убираем долгую блокировку рендера
 
     const setToken = useCallback((newToken) => {
         setTokenState(newToken);
@@ -76,8 +75,6 @@ export const AuthProvider = ({ children }) => {
         return newUserData;
     }, []);
 
-    // Опционально: фоновый запрос рефреша, если токен протухает,
-    // но базовую сессию мы уже подняли из localStorage
     useEffect(() => {
         const backgroundRefresh = async () => {
             try {
@@ -90,12 +87,10 @@ export const AuthProvider = ({ children }) => {
                     setUser(jwtDecode(response.data.token));
                 }
             } catch (refreshError) {
-                // Если refresh не удался, но в localStorage токен еще есть — оставляем пока жив
                 console.log('Background refresh skipped or failed');
             }
         };
 
-        // Если токена нет совсем, пробуем запросить рефреш по куке
         if (!token) {
             backgroundRefresh();
         }
@@ -104,7 +99,6 @@ export const AuthProvider = ({ children }) => {
     const value = {
         token,
         user,
-        loading,
         login,
         register,
         logout,
