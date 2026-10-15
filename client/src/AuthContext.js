@@ -6,13 +6,29 @@ import { authApi, setAccessToken } from './api';
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const [token, setTokenState] = useState(null);
-    const [user, setUser] = useState(null);                                                                                                                  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    const [loading, setLoading] = useState(true);
+    // 1. Инициализируем токен из localStorage при старте
+    const [token, setTokenState] = useState(() => localStorage.getItem('accessToken') || null);
+    const [user, setUser] = useState(() => {
+        const savedToken = localStorage.getItem('accessToken');
+        if (savedToken) {
+            try {
+                return jwtDecode(savedToken);
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    });
+    const [loading, setLoading] = useState(false); // Убираем долгую блокировку рендера
 
     const setToken = useCallback((newToken) => {
         setTokenState(newToken);
         setAccessToken(newToken);
+        if (newToken) {
+            localStorage.setItem('accessToken', newToken);
+        } else {
+            localStorage.removeItem('accessToken');
+        }
     }, []);
 
     const handleAuthSuccess = useCallback((data) => {
@@ -52,41 +68,40 @@ export const AuthProvider = ({ children }) => {
         }
         setToken(null);
         setUser(null);
+        localStorage.removeItem('accessToken');
     }, [setToken]);
 
-    // Новый метод обновления профиля
     const updateUser = useCallback(async (newUserData) => {
-        // newUserData содержит обновлённые поля пользователя (например, name)
         setUser(prev => ({ ...prev, ...newUserData }));
         return newUserData;
     }, []);
 
+    // Опционально: фоновый запрос рефреша, если токен протухает,
+    // но базовую сессию мы уже подняли из localStorage
     useEffect(() => {
-        const initAuth = async () => {
+        const backgroundRefresh = async () => {
             try {
                 const response = await axios.post('/auth/refresh', {}, {
                     baseURL: process.env.REACT_APP_API_URL || 'http://13.38.76.64:5000',
                     withCredentials: true
                 });
                 if (response.data?.token) {
-                    const newToken = response.data.token;
-                    setToken(newToken);
-                    try {
-                        const decoded = jwtDecode(newToken);
-                        setUser(decoded);
-                    } catch (e) {
-                        console.error("Erro ao decodificar token", e);
-                    }
+                    setToken(response.data.token);
+                    setUser(jwtDecode(response.data.token));
                 }
             } catch (refreshError) {
-                console.log('No valid session');
+                // Если refresh не удался, но в localStorage токен еще есть — оставляем пока жив
+                console.log('Background refresh skipped or failed');
             }
-            setLoading(false);
         };
-        initAuth();
-    }, [setToken]);
 
-    const value = {                                                                                                                                                //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // Если токена нет совсем, пробуем запросить рефреш по куке
+        if (!token) {
+            backgroundRefresh();
+        }
+    }, [token, setToken]);
+
+    const value = {
         token,
         user,
         loading,
@@ -100,7 +115,7 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };
