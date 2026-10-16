@@ -104,13 +104,19 @@ const PORT = process.env.PORT || 5000;
 async function start() {
   try {
     await prisma.$connect();
-    console.log('✅ Banco de dados SQLite conectado');
+
+    // Определяем тип базы по строке подключения из .env
+    const dbUrl = process.env.DATABASE_URL || '';
+    const isPostgres = dbUrl.includes('postgresql') || dbUrl.includes('postgres');
+    const dbName = isPostgres ? 'PostgreSQL (RDS)' : 'SQLite';
+
     server.listen(PORT, () => {
       console.log('---');
       console.log(`🚀 EXTREME GEAR SHOP SERVER STARTED`);
       console.log(`📍 URL: http://localhost:${PORT}`);
       console.log(`📚 Swagger UI: http://localhost:${PORT}/api-docs`);
-      console.log(`🛠 Mode: Development (SQLite)`);
+      console.log(`🛠 Mode: ${process.env.NODE_ENV || 'development'} (${dbName})`);
+      console.log(`✅ Banco de dados ${dbName} conectado`);
       console.log('---');
     });
   } catch (err) {
