@@ -14,7 +14,7 @@
   "keywords": [
     "express",
     "prisma",
-    "sqlite",
+    "postgresql",
     "skateboard-shop"
   ],
   "author": "",
