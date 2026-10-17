@@ -146,7 +146,17 @@ jobs:
               cp -a "${APP_DIR}/.env" /tmp/extreme-gear-shop.env.bak
             fi
 
-            tar -xzf "${ARCHIVE}" -C "${APP_DIR}"
+            # Overlay tar does not delete files removed from the repo.
+            # Previous deploys left server/prisma/migrations/20260518153120_init_sqlite on disk.
+            RELEASE_TMP="$(mktemp -d)"
+            tar -xzf "${ARCHIVE}" -C "${RELEASE_TMP}"
+            mkdir -p "${APP_DIR}/server" "${APP_DIR}/client"
+            rsync -a --delete \
+              --exclude 'node_modules/' \
+              "${RELEASE_TMP}/server/" "${APP_DIR}/server/"
+            rsync -a --delete \
+              "${RELEASE_TMP}/client/" "${APP_DIR}/client/"
+            rm -rf "${RELEASE_TMP}"
 
             if [ -f /tmp/extreme-gear-shop.env.bak ]; then
               mv /tmp/extreme-gear-shop.env.bak "${APP_DIR}/.env"
@@ -160,6 +170,8 @@ jobs:
             cd "${APP_DIR}/server"
             npm install --production --no-audit --no-fund
             npx --yes prisma@6.11.1 generate
+            # P3009/P3018: RDS still has a failed SQLite migration row from an earlier deploy.
+            npx --yes prisma@6.11.1 migrate resolve --rolled-back "20260518153120_init_sqlite" || true
             npx --yes prisma@6.11.1 migrate deploy
 
             export NODE_ENV=production
