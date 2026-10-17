@@ -47,8 +47,39 @@ jobs:
       - name: Plan Terraform root module
         working-directory: infra/terraform
         env:
-          TF_VAR_db_password: ci-plan-only-password-not-used-for-apply
-        run: terraform plan -input=false -var='db_password=ci-plan-only-password-not-used-for-apply'
+          TF_VAR_project_name: ${{ vars.TERRAFORM_PROJECT_NAME }}
+          TF_VAR_environment: ${{ vars.TERRAFORM_ENVIRONMENT }}
+          TF_VAR_ec2_key_name: ${{ vars.TERRAFORM_EC2_KEY_NAME }}
+          TF_VAR_ssh_ingress_cidr: ${{ vars.TERRAFORM_SSH_INGRESS_CIDR }}
+          TF_VAR_db_password: ${{ secrets.RDS_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in TF_VAR_project_name TF_VAR_environment TF_VAR_db_password; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required Terraform GitHub variable/secret: $name" >&2
+              exit 1
+            fi
+          done
+
+          if [[ -z "$TF_VAR_ssh_ingress_cidr" ]]; then
+            echo "TERRAFORM_SSH_INGRESS_CIDR must be set explicitly; CI must not silently plan to remove SSH ingress." >&2
+            exit 1
+          fi
+          if [[ -z "$TF_VAR_ec2_key_name" ]]; then
+            echo "TERRAFORM_EC2_KEY_NAME is required when TERRAFORM_SSH_INGRESS_CIDR is set." >&2
+            exit 1
+          fi
+
+          terraform plan -input=false -out=tfplan
+          terraform show -json tfplan > tfplan.json
+          if jq -e '[.resource_changes[]? | select(.change.actions | index("delete"))] | length == 0' tfplan.json > /dev/null; then
+            echo "Terraform plan contains no resource deletions or replacements."
+          else
+            echo "Terraform plan includes deletions/replacements; refusing to pass CI. Review the full plan before changing this gate." >&2
+            jq -r '.resource_changes[]? | select(.change.actions | index("delete")) | " - \(.address): \(.change.actions | join(", "))"' tfplan.json >&2
+            exit 1
+          fi
 
       - name: Validate Terraform bootstrap module
         working-directory: infra/terraform/bootstrap

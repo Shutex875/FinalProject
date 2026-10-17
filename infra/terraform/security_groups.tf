@@ -22,14 +22,21 @@ resource "aws_vpc_security_group_ingress_rule" "http_https" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ssh" {
-  count = var.ssh_ingress_cidr == null ? 0 : 1
+  for_each = var.ssh_ingress_cidr == null ? {} : {
+    administrator = var.ssh_ingress_cidr
+  }
 
   security_group_id = aws_security_group.ec2.id
-  cidr_ipv4         = var.ssh_ingress_cidr
+  cidr_ipv4         = each.value
   from_port         = 22
   to_port           = 22
   ip_protocol       = "tcp"
   description       = "SSH from the explicitly configured administrator CIDR only."
+}
+
+moved {
+  from = aws_vpc_security_group_ingress_rule.ssh[0]
+  to   = aws_vpc_security_group_ingress_rule.ssh["administrator"]
 }
 
 resource "aws_vpc_security_group_egress_rule" "http_https" {
