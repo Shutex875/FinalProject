@@ -1,4 +1,4 @@
-aws_region    = "eu-west-1"
+aws_region    = "eu-west-3"
 project_name  = "finalproject"
 environment   = "dev"
 instance_type = "t3.micro"
