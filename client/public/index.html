@@ -1,36 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- SEO Optimization -->
-    <title>FormBuilder - Create Custom Forms, Surveys and Quizzes</title>
-    <meta name="description" content="Create and share custom forms, surveys and quizzes like Google Forms. FormBuilder helps you design beautiful forms with analytics." />
-    <meta name="keywords" content="form builder, survey creator, quiz maker, online forms, custom forms" />
-    <meta name="author" content="FormBuilder Team" />
+    <title>Extreme Gear — Магазин скейтбордов, дек и одежды</title>
+    <meta name="description" content="Интернет-магазин Extreme Gear: лучшие скейтборды, профессиональные деки, худи, кофты и стильная одежда для скейтбординга." />
+    <meta name="keywords" content="скейтборд, дека, купить скейт, скейтшоп, одежда для скейтбординга, худи, кофты, Extreme Gear" />
+    <meta name="author" content="Extreme Gear Team" />
 
     <!-- PWA Configuration -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <meta name="theme-color" content="#4285f4" />
+    <meta name="theme-color" content="#111111" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" sizes="any" />
     <link rel="icon" href="%PUBLIC_URL%/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-title" content="FormBuilder" />
+    <meta name="apple-mobile-web-app-title" content="Extreme Gear" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
     <!-- Social Media Sharing -->
-    <meta property="og:title" content="FormBuilder - Create Custom Forms" />
-    <meta property="og:description" content="Design and share beautiful forms, surveys and quizzes with powerful analytics" />
+    <meta property="og:title" content="Extreme Gear — Магазин скейтбординга и одежды" />
+    <meta property="og:description" content="Профессиональные скейтборды, деки и фирменный мерч. Выбирай лучшее для катания." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://your-formbuilder-domain.com" />
+    <meta property="og:url" content="http://13.38.76.64" />
     <meta property="og:image" content="%PUBLIC_URL%/social-share.jpg" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="FormBuilder" />
-    <meta name="twitter:description" content="Create and share custom forms with powerful analytics" />
+    <meta name="twitter:title" content="Extreme Gear" />
+    <meta name="twitter:description" content="Магазин скейтбордов, дек и одежды для скейтбординга." />
     <meta name="twitter:image" content="%PUBLIC_URL%/social-share.jpg" />
 
     <!-- Performance Optimization -->
@@ -41,7 +41,6 @@
 
     <!-- Initial Theme Setup -->
     <script>
-      // Immediately set theme based on localStorage or system preference
       (function() {
         var savedTheme = localStorage.getItem('theme');
         var systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -51,20 +50,14 @@
         document.documentElement.classList.add(theme);
       })();
     </script>
-
   </head>
   <body>
     <noscript>
       <div class="noscript-container">
         <div class="noscript-content">
-          <h1>JavaScript Required</h1>
-          <p>FormBuilder requires JavaScript to function properly.</p>
-          <p>Please enable JavaScript in your browser settings to continue.</p>
-          <p>
-            <a href="https://www.enable-javascript.com/" target="_blank">
-              Learn how to enable JavaScript
-            </a>
-          </p>
+          <h1>Требуется JavaScript</h1>
+          <p>Для работы интернет-магазина Extreme Gear необходим JavaScript.</p>
+          <p>Пожалуйста, включите JavaScript в настройках вашего браузера.</p>
         </div>
       </div>
     </noscript>
@@ -73,15 +66,15 @@
     <!-- Inline Critical CSS -->
     <style>
       :root {
-        --primary: #4285f4;
+        --primary: #ff4500;
         --text: #202124;
         --background: #ffffff;
       }
 
       [data-theme="dark"] {
-        --primary: #8ab4f8;
+        --primary: #ff5722;
         --text: #e8eaed;
-        --background: #202124;
+        --background: #121212;
       }
 
       body {
@@ -123,16 +116,6 @@
       .noscript-content p {
         margin-bottom: 15px;
         line-height: 1.6;
-      }
-
-      .noscript-content a {
-        color: var(--primary);
-        text-decoration: none;
-        font-weight: 500;
-      }
-
-      .noscript-content a:hover {
-        text-decoration: underline;
       }
     </style>
   </body>

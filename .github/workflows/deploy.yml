@@ -69,9 +69,10 @@ jobs:
           STAGE="${RUNNER_TEMP}/release"
           mkdir -p "${STAGE}/client" "${STAGE}/server"
 
-          cp -a client/build "${STAGE}/client/build"
+          # Копируем билд клиента, исключая тяжелые картинки/ассеты при необходимости
+          rsync -a --exclude 'images/' client/build/ "${STAGE}/client/build/"
 
-          # Server runtime: source, lockfile, Prisma schema and migrations.
+          # Серверная часть (исключаем node_modules, .git, .env и т.д.)
           rsync -a \
             --exclude 'node_modules/' \
             --exclude '.git/' \
@@ -84,7 +85,6 @@ jobs:
             server/ "${STAGE}/server/"
 
           tar -czf "${{ env.ARCHIVE_NAME }}" -C "${STAGE}" .
-          tar -tzf "${{ env.ARCHIVE_NAME }}" | head -n 50
           ls -lh "${{ env.ARCHIVE_NAME }}"
 
       - name: Upload deployment artifact
