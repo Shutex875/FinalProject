@@ -1,0 +1,242 @@
+name: CI and production deploy
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches:
+      - master
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || !contains(fromJSON('["master","main"]'), github.ref_name) }}
+
+jobs:
+  terraform:
+    name: Terraform format, validate, and security scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Configure AWS credentials for Terraform plan
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: eu-west-3
+          role-session-name: github-actions-terraform-plan
+
+      - name: Validate Terraform root module
+        working-directory: infra/terraform
+        run: |
+          terraform init -input=false
+          terraform validate
+
+      - name: Plan Terraform root module
+        working-directory: infra/terraform
+        env:
+          TF_VAR_db_password: ci-plan-only-password-not-used-for-apply
+        run: terraform plan -input=false -var='db_password=ci-plan-only-password-not-used-for-apply'
+
+      - name: Validate Terraform bootstrap module
+        working-directory: infra/terraform/bootstrap
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Run TFLint
+        working-directory: infra/terraform
+        run: |
+          tflint --init
+          tflint --recursive
+
+      - name: Scan Terraform configuration with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: infra/terraform
+          scanners: misconfig
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+  backend:
+    name: Backend and database CI
+    needs: [terraform]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm ci
+      - name: Validate Prisma schema and generate client
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://ci_user:ci_password@127.0.0.1:5432/ci_db
+        run: |
+          npx prisma validate
+          npx prisma generate
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          find server -type f -name '*.js' -not -path '*/node_modules/*' -print0 \
+            | xargs -0 -r -n1 node --check
+
+      - name: Lint backend JavaScript
+        shell: bash
+        run: |
+          find server -type f -name '*.js' -not -path '*/node_modules/*' -print0 \
+            | xargs -0 -r npx --yes eslint@8.57.1 --no-eslintrc --env es2022,node \
+                --parser-options '{"sourceType":"module","ecmaVersion":"latest"}' \
+                --rule 'no-unreachable:error' --rule 'valid-typeof:error' \
+                --rule 'no-constant-condition:error'
+
+  frontend:
+    name: Frontend CI
+    needs: [backend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: client
+        run: npm ci
+      - name: Lint frontend
+        working-directory: client
+        run: npx eslint src
+      - name: Run frontend tests
+        working-directory: client
+        env:
+          CI: 'true'
+        run: npm test -- --watchAll=false --passWithNoTests
+      - name: Build frontend
+        working-directory: client
+        env:
+          CI: 'true'
+          GENERATE_SOURCEMAP: 'false'
+          REACT_APP_API_URL: /api
+        run: npm run build
+
+  deploy:
+    name: Deploy to EC2 with Docker Compose
+    needs: [terraform, backend, frontend]
+    if: github.event_name == 'push' && contains(fromJSON('["master","main"]'), github.ref_name)
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: 51.44.211.29
+      DEPLOY_USER: ubuntu
+      DEPLOY_DIR: /home/ubuntu/FinalProject
+      DEPLOY_BRANCH: ${{ github.ref_name }}
+      DEPLOY_SHA: ${{ github.sha }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      RDS_HOST: ${{ vars.RDS_HOST }}
+      RDS_DB_NAME: ${{ vars.RDS_DB_NAME }}
+      CLIENT_URL: ${{ vars.CLIENT_URL }}
+      RDS_USERNAME: ${{ secrets.RDS_USERNAME }}
+      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+    steps:
+      - name: Validate required deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in RDS_HOST RDS_DB_NAME CLIENT_URL RDS_USERNAME RDS_PASSWORD JWT_SECRET JWT_REFRESH_SECRET; do
+            if [[ -z "${!name}" ]]; then echo "Missing required GitHub variable/secret: $name" >&2; exit 1; fi
+          done
+
+      - name: Configure SSH with pinned host key
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Create production environment file
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const encode = (value) => encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+          const quote = (value) => `"${String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n')}"`;
+          const dbUrl = `postgresql://${encode(process.env.RDS_USERNAME)}:${encode(process.env.RDS_PASSWORD)}@${process.env.RDS_HOST}:5432/${process.env.RDS_DB_NAME}?sslmode=require`;
+          const values = {
+            NODE_ENV: 'production', PORT: '5000', DATABASE_URL: dbUrl,
+            JWT_SECRET: process.env.JWT_SECRET,
+            JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
+            CLIENT_URL: process.env.CLIENT_URL,
+            JWT_ISSUER: 'ExtremeGearShop', JWT_AUDIENCE: 'client', JWT_EXPIRES_IN: '15m'
+          };
+          fs.writeFileSync('.deploy.env', Object.entries(values).map(([k, v]) => `${k}=${quote(v)}`).join('\n') + '\n', { mode: 0o600 });
+          NODE
+
+      - name: Copy environment file to EC2
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            .deploy.env "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/finalproject-${GITHUB_RUN_ID}.env"
+
+      - name: Update repository and restart production containers
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "DEPLOY_DIR='${DEPLOY_DIR}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' DEPLOY_SHA='${DEPLOY_SHA}' GITHUB_REPOSITORY='${GITHUB_REPOSITORY}' ENV_FILE='/tmp/finalproject-${GITHUB_RUN_ID}.env' bash -s" <<'REMOTE'
+          set -euo pipefail
+          if [ ! -d "$DEPLOY_DIR/.git" ]; then
+            install -d "$(dirname "$DEPLOY_DIR")"
+            git clone "git@github.com:${GITHUB_REPOSITORY}.git" "$DEPLOY_DIR"
+          fi
+          install -m 600 "$ENV_FILE" "$DEPLOY_DIR/.env"
+          rm -f "$ENV_FILE"
+          cd "$DEPLOY_DIR"
+          git fetch --prune origin "$DEPLOY_BRANCH"
+          git checkout -B "$DEPLOY_BRANCH" "origin/$DEPLOY_BRANCH"
+          git reset --hard "$DEPLOY_SHA"
+          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          docker image prune -f
+          REMOTE
+
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f .deploy.env ~/.ssh/deploy_key
