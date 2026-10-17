@@ -7,5 +7,5 @@ variable "aws_region" {
 variable "project_name" {
   description = "Prefix used for state resource names."
   type        = string
-  default     = "finalproject"
+  default     = "deck-market"
 }
