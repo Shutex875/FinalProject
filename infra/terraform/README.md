@@ -61,6 +61,17 @@ terraform -chdir=infra/terraform output
 
 The `db_password` input is marked sensitive in CLI output, but Terraform still records RDS credentials in state. The S3 bucket enables versioning and server-side encryption; restrict access to the bucket/table to the Terraform operators.
 
+## Configure Terraform CI
+
+The GitHub Actions plan reads its non-secret infrastructure inputs from repository Actions variables and the database password from the existing `RDS_PASSWORD` Actions secret. Configure these repository variables to match the inputs used to create the resources already recorded in the remote state:
+
+- `TERRAFORM_PROJECT_NAME` (currently `deck-market`)
+- `TERRAFORM_ENVIRONMENT` (currently `development`)
+- `TERRAFORM_EC2_KEY_NAME` (currently `ec2-final-project` when SSH is enabled)
+- `TERRAFORM_SSH_INGRESS_CIDR` (the currently authorized administrator IPv4 CIDR, such as a `/32`; CI requires this value so a missing variable cannot remove the rule)
+
+The SSH ingress rule uses a stable `for_each` key, and the `moved` block maps the existing `ssh[0]` state address to that key without recreating the rule. The plan check fails if any managed resource would be deleted or replaced. This prevents a missing Actions variable or a Terraform change from silently passing CI with a destructive plan. Review the full plan and update the expected infrastructure configuration before changing this protection.
+
 ## Security and operational notes
 
 - Only the web listener ports 80/443 are internet-facing. SSH is a separate optional ingress rule constrained to `ssh_ingress_cidr`; no SSH rule is created by default.
