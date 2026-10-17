@@ -1,0 +1,11 @@
+variable "aws_region" {
+  description = "AWS region for Terraform state resources."
+  type        = string
+  default     = "eu-west-1"
+}
+
+variable "project_name" {
+  description = "Prefix used for state resource names."
+  type        = string
+  default     = "finalproject"
+}
