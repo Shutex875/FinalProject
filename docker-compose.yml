@@ -46,8 +46,6 @@ services:
     container_name: finalproject-client-1
     ports:
       - "3000:80"
-    volumes:
-      - ./client/public/images:/usr/share/nginx/html/images
     depends_on:
       - server
     environment:

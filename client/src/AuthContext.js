@@ -6,8 +6,15 @@ import { authApi, setAccessToken } from './api';
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    // 1. Инициализируем токен из localStorage при старте
-    const [token, setTokenState] = useState(() => localStorage.getItem('accessToken') || null);
+    // 1. Инициализируем токен из localStorage при старте и СРАЗУ прокидываем в api.js
+    const [token, setTokenState] = useState(() => {
+        const savedToken = localStorage.getItem('accessToken');
+        if (savedToken) {
+            setAccessToken(savedToken); // <--- ВОТ ЭТОТ КЛЮЧЕВОЙ МОМЕНТ
+        }
+        return savedToken || null;
+    });
+
     const [user, setUser] = useState(() => {
         const savedToken = localStorage.getItem('accessToken');
         if (savedToken) {
