@@ -1,0 +1,179 @@
+name: Build and deploy
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+  APP_DIR: /home/ubuntu/FinalProject
+  ARCHIVE_NAME: app-release.tar.gz
+
+jobs:
+  build:
+    name: Test, build, and package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Run client tests
+        working-directory: client
+        env:
+          CI: true
+        run: npm test -- --watchAll=false --ci
+
+      - name: Check server JavaScript syntax
+        run: |
+          find server -type f -name '*.js' \
+            -not -path '*/node_modules/*' \
+            -print0 | xargs -0 -r -n1 node --check
+
+      - name: Build client
+        working-directory: client
+        env:
+          CI: true
+          GENERATE_SOURCEMAP: "false"
+          REACT_APP_API_URL: /api
+        run: npm run build
+
+      - name: Package production archive
+        run: |
+          set -euo pipefail
+          STAGE="${RUNNER_TEMP}/release"
+          mkdir -p "${STAGE}/client" "${STAGE}/server"
+
+          cp -a client/build "${STAGE}/client/build"
+
+          # Server runtime: source, lockfile, Prisma schema and migrations.
+          rsync -a \
+            --exclude 'node_modules/' \
+            --exclude '.git/' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            --exclude '*.db' \
+            --exclude '*.db-journal' \
+            --exclude 'dev.db' \
+            --exclude '*.log' \
+            server/ "${STAGE}/server/"
+
+          tar -czf "${{ env.ARCHIVE_NAME }}" -C "${STAGE}" .
+          tar -tzf "${{ env.ARCHIVE_NAME }}" | head -n 50
+          ls -lh "${{ env.ARCHIVE_NAME }}"
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release
+          path: ${{ env.ARCHIVE_NAME }}
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy to EC2
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: production-release
+
+      - name: Copy archive to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: ${{ env.ARCHIVE_NAME }}
+          target: /tmp
+
+      - name: Unpack, install, and restart
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          APP_DIR: ${{ env.APP_DIR }}
+          ARCHIVE_NAME: ${{ env.ARCHIVE_NAME }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: APP_DIR,ARCHIVE_NAME
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            ARCHIVE="/tmp/${ARCHIVE_NAME}"
+            if [ ! -f "${ARCHIVE}" ]; then
+              echo "Missing release archive: ${ARCHIVE}"
+              exit 1
+            fi
+
+            if ! command -v pm2 >/dev/null 2>&1; then
+              echo "PM2 is not installed on the EC2 host. Install it before deploying."
+              exit 1
+            fi
+
+            mkdir -p "${APP_DIR}"
+
+            # Keep the host .env (never ship secrets in the archive).
+            if [ -f "${APP_DIR}/.env" ]; then
+              cp -a "${APP_DIR}/.env" /tmp/extreme-gear-shop.env.bak
+            fi
+
+            tar -xzf "${ARCHIVE}" -C "${APP_DIR}"
+
+            if [ -f /tmp/extreme-gear-shop.env.bak ]; then
+              mv /tmp/extreme-gear-shop.env.bak "${APP_DIR}/.env"
+            fi
+
+            if [ ! -f "${APP_DIR}/.env" ]; then
+              echo "No ${APP_DIR}/.env found. Copy .env.example on the server and fill in production values."
+              exit 1
+            fi
+
+            cd "${APP_DIR}/server"
+            npm install --production --no-audit --no-fund
+            npx --yes prisma@6.11.1 generate
+            npx --yes prisma@6.11.1 migrate deploy
+
+            export NODE_ENV=production
+            # cwd is the repo root so dotenv loads ${APP_DIR}/.env and static files resolve to client/build.
+            if pm2 describe extreme-gear-shop >/dev/null 2>&1; then
+              pm2 restart extreme-gear-shop --update-env
+            else
+              pm2 start server/index.js \
+                --name extreme-gear-shop \
+                --cwd "${APP_DIR}" \
+                --update-env
+            fi
+            pm2 save
+
+            rm -f "${ARCHIVE}"
+            echo "Deploy complete: ${APP_DIR}"
