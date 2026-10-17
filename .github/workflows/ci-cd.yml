@@ -47,10 +47,10 @@ jobs:
       - name: Plan Terraform root module
         working-directory: infra/terraform
         env:
-          TF_VAR_project_name: ${{ vars.TERRAFORM_PROJECT_NAME }}
-          TF_VAR_environment: ${{ vars.TERRAFORM_ENVIRONMENT }}
-          TF_VAR_ec2_key_name: ${{ vars.TERRAFORM_EC2_KEY_NAME }}
-          TF_VAR_ssh_ingress_cidr: ${{ vars.TERRAFORM_SSH_INGRESS_CIDR }}
+          TF_VAR_project_name: ${{ secrets.TERRAFORM_PROJECT_NAME }}
+          TF_VAR_environment: ${{ secrets.TERRAFORM_ENVIRONMENT }}
+          TF_VAR_ec2_key_name: ${{ secrets.TERRAFORM_EC2_KEY_NAME }}
+          TF_VAR_ssh_ingress_cidr: ${{ secrets.TERRAFORM_SSH_INGRESS_CIDR }}
           TF_VAR_db_password: ${{ secrets.RDS_PASSWORD }}
         shell: bash
         run: |
