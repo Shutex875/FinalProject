@@ -169,8 +169,13 @@ jobs:
 
             cd "${APP_DIR}/server"
             npm install --production --no-audit --no-fund
+
+            # Загружаем .env в окружение текущего bash-скрипта для Prisma
+            set -a
+            source "${APP_DIR}/.env"
+            set +a
+
             npx --yes prisma@6.11.1 generate
-            # P3009/P3018: RDS still has a failed SQLite migration row from an earlier deploy.
             npx --yes prisma@6.11.1 migrate resolve --rolled-back "20260518153120_init_sqlite" || true
             npx --yes prisma@6.11.1 migrate deploy
 
