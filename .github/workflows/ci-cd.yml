@@ -7,6 +7,7 @@ on:
     branches:
       - master
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,9 +20,6 @@ jobs:
   terraform:
     name: Terraform format, validate, and security scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -36,9 +34,9 @@ jobs:
       - name: Configure AWS credentials for Terraform plan
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-3
-          role-session-name: github-actions-terraform-plan
 
       - name: Validate Terraform root module
         working-directory: infra/terraform
