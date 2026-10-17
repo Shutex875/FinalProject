@@ -1,0 +1,34 @@
+output "ec2_public_ip" {
+  description = "Public IPv4 address of the application host."
+  value       = aws_instance.app.public_ip
+}
+
+output "ec2_public_dns" {
+  description = "Public DNS name of the application host."
+  value       = aws_instance.app.public_dns
+}
+
+output "rds_endpoint" {
+  description = "Private PostgreSQL endpoint (reachable from inside the VPC only)."
+  value       = aws_db_instance.postgres.address
+}
+
+output "rds_port" {
+  description = "PostgreSQL port."
+  value       = aws_db_instance.postgres.port
+}
+
+output "vpc_id" {
+  description = "VPC ID."
+  value       = aws_vpc.main.id
+}
+
+output "ec2_security_group_id" {
+  description = "Application EC2 security group ID."
+  value       = aws_security_group.ec2.id
+}
+
+output "rds_security_group_id" {
+  description = "Private RDS security group ID."
+  value       = aws_security_group.rds.id
+}
