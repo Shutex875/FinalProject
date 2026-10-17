@@ -13,7 +13,7 @@ This stack creates an IPv4 VPC, a public EC2 host, private PostgreSQL RDS, secur
 - AWS credentials configured with permission to create VPC, EC2, RDS, IAM, S3 and DynamoDB resources. Use an IAM Identity Center profile or another short-lived credential method where possible.
 - An available AWS account and a unique S3 bucket name. The bootstrap bucket uses the account ID and region in its name.
 
-Run the commands below from the repository root in PowerShell. The selected default region is `eu-west-1`; override `TF_VAR_aws_region` if needed.
+Run the commands below from the repository root in PowerShell. The selected default region is `eu-west-3`, matching the EC2 and RDS deployment; override `TF_VAR_aws_region` only when intentionally deploying the stack elsewhere.
 
 ## 1. Create the remote-state resources
 
