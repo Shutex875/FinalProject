@@ -34,3 +34,13 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Terraform state, local providers, plans, and secrets
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
