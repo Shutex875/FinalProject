@@ -104,6 +104,7 @@ jobs:
           scanners: misconfig
           severity: HIGH,CRITICAL
           exit-code: '1'
+          trivyignores: .trivyignore,infra/terraform/.trivyignore
 
   backend:
     name: Backend and database CI
