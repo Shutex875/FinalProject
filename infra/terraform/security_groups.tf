@@ -39,6 +39,8 @@ moved {
   to   = aws_vpc_security_group_ingress_rule.ssh["administrator"]
 }
 
+# Required for web traffic and SSM/package updates; the destination is limited to TCP 80/443.
+#trivy:ignore:AWS-0104
 resource "aws_vpc_security_group_egress_rule" "http_https" {
   for_each = toset(["80", "443"])
 
