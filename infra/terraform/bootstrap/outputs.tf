@@ -12,3 +12,8 @@ output "aws_region" {
   description = "Region containing the state bucket and lock table."
   value       = var.aws_region
 }
+
+output "state_kms_key_arn" {
+  description = "Customer-managed KMS key ARN used to encrypt Terraform state objects."
+  value       = aws_kms_key.terraform_state.arn
+}

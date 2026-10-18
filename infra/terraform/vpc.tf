@@ -17,6 +17,8 @@ resource "aws_internet_gateway" "main" {
   tags = { Name = "${local.name_prefix}-igw" }
 }
 
+# This app host intentionally receives a public IP to serve the public web application.
+#trivy:ignore:AWS-0164
 resource "aws_subnet" "public" {
   count = 2
 
