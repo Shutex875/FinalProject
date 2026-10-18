@@ -1,6 +1,9 @@
 import { render, act, waitFor } from '@testing-library/react';
 import { CartProvider, useCart } from '../CartContext';
 
+import { cartApi } from '../../api';
+import { useAuth } from '../../AuthContext';
+
 jest.mock('../../api', () => ({
   cartApi: {
     getCart: jest.fn(),
@@ -14,9 +17,6 @@ jest.mock('../../api', () => ({
 jest.mock('../../AuthContext', () => ({
   useAuth: jest.fn(),
 }));
-
-import { cartApi } from '../../api';
-import { useAuth } from '../../AuthContext';
 
 const TestComponent = ({ onRender }) => {
   const cart = useCart();
@@ -54,9 +54,11 @@ describe('CartContext', () => {
   it('should initialize with empty cart', async () => {
     renderCart();
     await waitFor(() => {
-      expect(cartValue.cartItems).toEqual([]);
-      expect(cartValue.cartCount).toBe(0);
-      expect(cartValue.cartTotal).toBe(0);
+      expect(cartValue).toEqual(expect.objectContaining({
+        cartItems: [],
+        cartCount: 0,
+        cartTotal: 0,
+      }));
     });
   });
 
