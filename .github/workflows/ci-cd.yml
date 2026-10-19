@@ -1,12 +1,10 @@
-name: CI and production deploy
+name: Enterprise CI/CD
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [main, master]
   push:
-    branches:
-      - master
-      - main
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -14,11 +12,11 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'push' || !contains(fromJSON('["master","main"]'), github.ref_name) }}
+  cancel-in-progress: ${{ github.event_name != 'push' || !contains(fromJSON('["main","master"]'), github.ref_name) }}
 
 jobs:
-  terraform:
-    name: Terraform format, validate, and security scan
+  terraform-check:
+    name: Terraform validation and security checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,64 +29,19 @@ jobs:
       - name: Check Terraform formatting
         run: terraform fmt -check -recursive infra/terraform
 
-      - name: Configure AWS credentials for Terraform plan
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-3
-
-      - name: Validate Terraform root module
+      - name: Validate application infrastructure
         working-directory: infra/terraform
         run: |
-          terraform init -input=false
+          terraform init -backend=false -input=false
           terraform validate
 
-      - name: Plan Terraform root module
-        working-directory: infra/terraform
-        env:
-          TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
-          TF_VAR_environment: ${{ vars.ENVIRONMENT || 'development' }}
-          TF_VAR_ec2_key_name: ${{ vars.TERRAFORM_EC2_KEY_NAME }}
-          TF_VAR_ssh_ingress_cidr: ${{ vars.TERRAFORM_SSH_INGRESS_CIDR }}
-          TF_VAR_db_password: ${{ secrets.RDS_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for name in TF_VAR_project_name TF_VAR_environment TF_VAR_db_password; do
-            if [[ -z "${!name}" ]]; then
-              echo "Missing required Terraform GitHub variable/secret for $name." >&2
-              exit 1
-            fi
-          done
-
-          if [[ -z "$TF_VAR_ssh_ingress_cidr" ]]; then
-            echo "TERRAFORM_SSH_INGRESS_CIDR must be set explicitly; CI must not silently plan to remove SSH ingress." >&2
-            exit 1
-          fi
-          if [[ -z "$TF_VAR_ec2_key_name" ]]; then
-            echo "TERRAFORM_EC2_KEY_NAME is required when TERRAFORM_SSH_INGRESS_CIDR is set." >&2
-            exit 1
-          fi
-
-          terraform plan -input=false -out=tfplan
-          terraform show -json tfplan > tfplan.json
-          if jq -e '[.resource_changes[]? | select(.change.actions | index("delete"))] | length == 0' tfplan.json > /dev/null; then
-            echo "Terraform plan contains no resource deletions or replacements."
-          else
-            echo "Terraform plan includes deletions/replacements; refusing to pass CI. Review the full plan before changing this gate." >&2
-            jq -r '.resource_changes[]? | select(.change.actions | index("delete")) | " - \(.address): \(.change.actions | join(", "))"' tfplan.json >&2
-            exit 1
-          fi
-
-      - name: Validate Terraform bootstrap module
+      - name: Validate backend bootstrap module
         working-directory: infra/terraform/bootstrap
         run: |
           terraform init -backend=false -input=false
           terraform validate
 
-      - name: Set up TFLint
-        uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v4
 
       - name: Run TFLint
         working-directory: infra/terraform
@@ -96,7 +49,7 @@ jobs:
           tflint --init
           tflint --recursive
 
-      - name: Scan Terraform configuration with Trivy
+      - name: Scan Terraform configuration
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: config
@@ -106,9 +59,8 @@ jobs:
           exit-code: '1'
           trivyignores: .trivyignore,infra/terraform/.trivyignore
 
-  backend:
-    name: Backend and database CI
-    needs: [terraform]
+  backend-check:
+    name: Backend and database checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,24 +69,25 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: server/package-lock.json
-      - name: Install backend dependencies
+
+      - name: Install dependencies
         working-directory: server
         run: npm ci
-      - name: Validate Prisma schema and generate client
+
+      - name: Validate Prisma schema
         working-directory: server
         env:
           DATABASE_URL: postgresql://ci_user:ci_password@127.0.0.1:5432/ci_db
         run: |
           npx prisma validate
           npx prisma generate
+
       - name: Check JavaScript syntax
-        shell: bash
         run: |
           find server -type f -name '*.js' -not -path '*/node_modules/*' -print0 \
             | xargs -0 -r -n1 node --check
 
       - name: Lint backend JavaScript
-        shell: bash
         run: |
           find server -type f -name '*.js' -not -path '*/node_modules/*' -print0 \
             | xargs -0 -r npx --yes eslint@8.57.1 --no-eslintrc --env es2022,node \
@@ -142,9 +95,8 @@ jobs:
                 --rule 'no-unreachable:error' --rule 'valid-typeof:error' \
                 --rule 'no-constant-condition:error'
 
-  frontend:
-    name: Frontend CI
-    needs: [backend]
+  frontend-check:
+    name: Frontend checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -153,17 +105,21 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: client/package-lock.json
-      - name: Install frontend dependencies
+
+      - name: Install dependencies
         working-directory: client
         run: npm ci
+
       - name: Lint frontend
         working-directory: client
         run: npx eslint src
+
       - name: Run frontend tests
         working-directory: client
         env:
           CI: 'true'
         run: npm test -- --watchAll=false --passWithNoTests
+
       - name: Build frontend
         working-directory: client
         env:
@@ -172,24 +128,31 @@ jobs:
           REACT_APP_API_URL: /api
         run: npm run build
 
-  deploy:
-    name: Deploy to EC2 with Docker Compose
-    needs: [terraform, backend, frontend]
-    if: github.event_name == 'push' && contains(fromJSON('["master","main"]'), github.ref_name)
+  release:
+    name: Build, publish, provision, and deploy
+    needs: [terraform-check, backend-check, frontend-check]
+    if: >-
+      (github.event_name == 'push' && contains(fromJSON('["main","master"]'), github.ref_name)) ||
+      (github.event_name == 'workflow_dispatch' && contains(fromJSON('["main","master"]'), github.ref_name))
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
+      id-token: write
     concurrency:
-      group: production-deploy
+      group: production-release
       cancel-in-progress: false
     env:
-      DEPLOY_HOST: 51.44.211.29
-      DEPLOY_USER: ubuntu
-      DEPLOY_DIR: /home/ubuntu/FinalProject
-      DEPLOY_BRANCH: ${{ github.ref_name }}
-      DEPLOY_SHA: ${{ github.sha }}
-      GITHUB_REPOSITORY: ${{ github.repository }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+
+      ENVIRONMENT: ${{ vars.ENVIRONMENT || 'development' }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'terraform.tfstate' }}
+      TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
+      ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+      IMAGE_TAG: ${{ github.sha }}
       RDS_HOST: ${{ vars.RDS_HOST }}
       RDS_DB_NAME: ${{ vars.RDS_DB_NAME }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
@@ -197,33 +160,184 @@ jobs:
       RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+      TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
+      TF_VAR_environment: ${{ vars.ENVIRONMENT || 'development' }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      TF_VAR_db_password: ${{ secrets.RDS_PASSWORD }}
+      TF_VAR_image_tag: ${{ github.sha }}
     steps:
-      - name: Validate required deployment configuration
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Validate release configuration
         shell: bash
         run: |
           set -euo pipefail
-          for name in RDS_HOST RDS_DB_NAME CLIENT_URL RDS_USERNAME RDS_PASSWORD JWT_SECRET JWT_REFRESH_SECRET; do
-            if [[ -z "${!name}" ]]; then echo "Missing required GitHub variable/secret: $name" >&2; exit 1; fi
+          for name in AWS_ROLE_ARN PROJECT_NAME TF_STATE_BUCKET TF_LOCK_TABLE ARTIFACTS_BUCKET \
+                      RDS_HOST RDS_DB_NAME CLIENT_URL RDS_USERNAME RDS_PASSWORD JWT_SECRET JWT_REFRESH_SECRET; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub variable or secret: $name" >&2
+              exit 1
+            fi
           done
 
-      - name: Configure SSH with pinned host key
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Initialize remote Terraform backend
+        working-directory: infra/terraform
         shell: bash
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "$SSH_PRIVATE_KEY"
-          test -n "$SSH_KNOWN_HOSTS"
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${TF_LOCK_TABLE}" \
+            -backend-config="encrypt=true"
+          terraform validate
 
-      - name: Create production environment file
+      - name: Ensure ECR repositories exist and are managed by Terraform
+        working-directory: infra/terraform
         shell: bash
         run: |
+          set -euo pipefail
+          ensure_repository() {
+            local repository_name="$1"
+            local terraform_address="$2"
+            if terraform state list | grep -Fxq "$terraform_address"; then
+              return
+            fi
+            if ! aws ecr describe-repositories --repository-names "$repository_name" --region "$AWS_REGION" >/dev/null 2>&1; then
+              aws ecr create-repository \
+                --repository-name "$repository_name" \
+                --image-tag-mutability IMMUTABLE \
+                --image-scanning-configuration scanOnPush=true \
+                --region "$AWS_REGION" >/dev/null
+            fi
+            terraform import -input=false "$terraform_address" "$repository_name"
+          }
+          ensure_repository "${PROJECT_NAME}-${ENVIRONMENT}-server" aws_ecr_repository.server
+          ensure_repository "${PROJECT_NAME}-${ENVIRONMENT}-client" aws_ecr_repository.client
+
+      - name: Ensure artifacts bucket exists before publishing manifests
+        working-directory: infra/terraform
+        shell: bash
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          expected_bucket="${PROJECT_NAME}-${ENVIRONMENT}-artifacts-${account_id}"
+          if [[ "$ARTIFACTS_BUCKET" != "$expected_bucket" ]]; then
+            echo "ARTIFACTS_BUCKET must match the Terraform bucket name: $expected_bucket" >&2
+            exit 1
+          fi
+
+          if ! aws s3api head-bucket --bucket "$ARTIFACTS_BUCKET" --region "$AWS_REGION" 2>/dev/null; then
+            if [[ "$AWS_REGION" == us-east-1 ]]; then
+              aws s3api create-bucket --bucket "$ARTIFACTS_BUCKET" --region "$AWS_REGION" >/dev/null
+            else
+              aws s3api create-bucket --bucket "$ARTIFACTS_BUCKET" --region "$AWS_REGION" \
+                --create-bucket-configuration "LocationConstraint=${AWS_REGION}" >/dev/null
+            fi
+          fi
+
+          aws s3api put-public-access-block --bucket "$ARTIFACTS_BUCKET" --region "$AWS_REGION" \
+            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+          aws s3api put-bucket-versioning --bucket "$ARTIFACTS_BUCKET" --region "$AWS_REGION" \
+            --versioning-configuration Status=Enabled
+          aws s3api put-bucket-encryption --bucket "$ARTIFACTS_BUCKET" --region "$AWS_REGION" \
+            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+          if ! terraform state list | grep -Fxq 'aws_s3_bucket.artifacts'; then
+            terraform import -input=false aws_s3_bucket.artifacts "$ARTIFACTS_BUCKET"
+          fi
+
+      - name: Resolve ECR repositories from Terraform state
+        id: ecr
+        working-directory: infra/terraform
+        shell: bash
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          registry="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          echo "server_url=${registry}/${PROJECT_NAME}-${ENVIRONMENT}-server" >> "$GITHUB_OUTPUT"
+          echo "client_url=${registry}/${PROJECT_NAME}-${ENVIRONMENT}-client" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check whether this SHA is already published
+        id: image-state
+        shell: bash
+        env:
+          SERVER_REPOSITORY: ${{ steps.ecr.outputs.server_url }}
+          CLIENT_REPOSITORY: ${{ steps.ecr.outputs.client_url }}
+        run: |
+          set -euo pipefail
+          server_name="${SERVER_REPOSITORY##*/}"
+          client_name="${CLIENT_REPOSITORY##*/}"
+          if aws ecr describe-images --repository-name "$server_name" --image-ids "imageTag=${IMAGE_TAG}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo 'server_exists=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'server_exists=false' >> "$GITHUB_OUTPUT"
+          fi
+          if aws ecr describe-images --repository-name "$client_name" --image-ids "imageTag=${IMAGE_TAG}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo 'client_exists=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'client_exists=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push server image for linux/amd64
+        if: steps.image-state.outputs.server_exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr.outputs.server_url }}:${{ github.sha }}
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server
+
+      - name: Build and push client image for linux/amd64
+        if: steps.image-state.outputs.client_exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr.outputs.client_url }}:${{ github.sha }}
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,mode=max,scope=client
+
+      - name: Render and upload production release manifests
+        shell: bash
+        env:
+          ECR_REPO_URL: ${{ steps.ecr.outputs.server_url }}
+          CLIENT_ECR_REPO_URL: ${{ steps.ecr.outputs.client_url }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y gettext-base
+          release_dir="${RUNNER_TEMP}/release-${IMAGE_TAG}"
+          mkdir -p "$release_dir/current"
+          export ECR_REPO_URL CLIENT_ECR_REPO_URL IMAGE_TAG
+          envsubst < docker-compose.prod.yml > "$release_dir/docker-compose.prod.yml"
+          cp deploy.sh "$release_dir/deploy.sh"
+          cp "$release_dir/docker-compose.prod.yml" "$release_dir/current/"
+          cp deploy.sh "$release_dir/current/"
+
           node <<'NODE'
           const fs = require('node:fs');
           const encode = (value) => encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
@@ -236,37 +350,96 @@ jobs:
             CLIENT_URL: process.env.CLIENT_URL,
             JWT_ISSUER: 'ExtremeGearShop', JWT_AUDIENCE: 'client', JWT_EXPIRES_IN: '15m'
           };
-          fs.writeFileSync('.deploy.env', Object.entries(values).map(([k, v]) => `${k}=${quote(v)}`).join('\n') + '\n', { mode: 0o600 });
+          fs.writeFileSync(`${process.env.RUNNER_TEMP}/release-${process.env.IMAGE_TAG}/.env`,
+            Object.entries(values).map(([k, v]) => `${k}=${quote(v)}`).join('\n') + '\n', { mode: 0o600 });
           NODE
+          cp "$release_dir/.env" "$release_dir/current/.env"
 
-      - name: Copy environment file to EC2
+          release_prefix="s3://${ARTIFACTS_BUCKET}/${PROJECT_NAME}/${ENVIRONMENT}/config"
+          aws s3 cp "$release_dir/docker-compose.prod.yml" "${release_prefix}/releases/${IMAGE_TAG}/docker-compose.prod.yml" --sse AES256
+          aws s3 cp "$release_dir/deploy.sh" "${release_prefix}/releases/${IMAGE_TAG}/deploy.sh" --sse AES256
+          aws s3 cp "$release_dir/.env" "${release_prefix}/releases/${IMAGE_TAG}/.env" --sse AES256
+          aws s3 cp "$release_dir/current/docker-compose.prod.yml" "${release_prefix}/current/docker-compose.prod.yml" --sse AES256
+          aws s3 cp "$release_dir/current/deploy.sh" "${release_prefix}/current/deploy.sh" --sse AES256
+          aws s3 cp "$release_dir/current/.env" "${release_prefix}/current/.env" --sse AES256
+
+      - name: Apply Terraform and obtain EC2 instance ID
+        id: terraform-apply
+        working-directory: infra/terraform
         shell: bash
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
-            .deploy.env "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/finalproject-${GITHUB_RUN_ID}.env"
+          terraform apply -input=false -auto-approve -var "image_tag=$IMAGE_TAG"
+          instance_id="$(terraform output -raw instance_id)"
+          [[ "$instance_id" =~ ^i-[0-9a-f]+$ ]] || { echo "Invalid Terraform instance_id output: $instance_id" >&2; exit 1; }
+          echo "instance_id=$instance_id" >> "$GITHUB_OUTPUT"
 
-      - name: Update repository and restart production containers
+      - name: Deploy through AWS Systems Manager
         shell: bash
+        env:
+          INSTANCE_ID: ${{ steps.terraform-apply.outputs.instance_id }}
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "DEPLOY_DIR='${DEPLOY_DIR}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' DEPLOY_SHA='${DEPLOY_SHA}' GITHUB_REPOSITORY='${GITHUB_REPOSITORY}' ENV_FILE='/tmp/finalproject-${GITHUB_RUN_ID}.env' bash -s" <<'REMOTE'
-          set -euo pipefail
-          if [ ! -d "$DEPLOY_DIR/.git" ]; then
-            install -d "$(dirname "$DEPLOY_DIR")"
-            git clone "https://github.com/${GITHUB_REPOSITORY}.git" "$DEPLOY_DIR"
-          fi
-          install -m 600 "$ENV_FILE" "$DEPLOY_DIR/.env"
-          rm -f "$ENV_FILE"
-          cd "$DEPLOY_DIR"
-          git fetch --prune origin "$DEPLOY_BRANCH"
-          git checkout -B "$DEPLOY_BRANCH" "origin/$DEPLOY_BRANCH"
-          git reset --hard "$DEPLOY_SHA"
-          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-          docker image prune -f
-          REMOTE
+          online=false
+          for attempt in $(seq 1 60); do
+            ping_status="$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
+              --region "$AWS_REGION" \
+              --query 'InstanceInformationList[0].PingStatus' \
+              --output text)"
+            if [[ "$ping_status" == Online ]]; then
+              online=true
+              break
+            fi
+            echo "Waiting for SSM agent on ${INSTANCE_ID} (${attempt}/60): ${ping_status}"
+            sleep 10
+          done
+          [[ "$online" == true ]] || { echo "EC2 instance did not become available through SSM." >&2; exit 1; }
 
-      - name: Remove temporary credentials
-        if: always()
-        run: rm -f .deploy.env ~/.ssh/deploy_key
+          release_prefix="s3://${ARTIFACTS_BUCKET}/${PROJECT_NAME}/${ENVIRONMENT}/config/releases/${IMAGE_TAG}"
+          remote_command="install -d -m 0750 /opt/app && aws s3 cp '${release_prefix}/deploy.sh' /opt/app/deploy.sh --region '${AWS_REGION}' && chmod 750 /opt/app/deploy.sh && ARTIFACTS_BUCKET='${ARTIFACTS_BUCKET}' AWS_REGION='${AWS_REGION}' PROJECT_NAME='${PROJECT_NAME}' ENVIRONMENT='${ENVIRONMENT}' /opt/app/deploy.sh '${IMAGE_TAG}'"
+          parameters="$(jq -n --arg command "$remote_command" '{commands:[$command]}')"
+          command_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --parameters "$parameters" \
+            --timeout-seconds 600 \
+            --region "$AWS_REGION" \
+            --query 'Command.CommandId' \
+            --output text)"
+          echo "SSM command $command_id dispatched to $INSTANCE_ID"
+
+          deadline=$((SECONDS + 720))
+          until aws ssm wait command-executed \
+              --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" \
+              --region "$AWS_REGION"; do
+            status="$(aws ssm get-command-invocation \
+              --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" \
+              --region "$AWS_REGION" \
+              --query 'Status' \
+              --output text 2>/dev/null || true)"
+            case "$status" in
+              Failed|Cancelled|TimedOut|DeliveryTimedOut|ExecutionTimedOut)
+                aws ssm get-command-invocation \
+                  --command-id "$command_id" \
+                  --instance-id "$INSTANCE_ID" \
+                  --region "$AWS_REGION" \
+                  --query 'StandardErrorContent' \
+                  --output text >&2 || true
+                exit 1
+                ;;
+            esac
+            if (( SECONDS >= deadline )); then
+              echo "Timed out waiting for SSM deployment command $command_id (last status: $status)." >&2
+              exit 1
+            fi
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID" \
+            --region "$AWS_REGION" \
+            --query 'StandardOutputContent' \
+            --output text

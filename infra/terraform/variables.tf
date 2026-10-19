@@ -79,6 +79,18 @@ variable "db_password" {
   }
 }
 
+variable "cloudfront_distribution_arn" {
+  description = "ARN of the CloudFront distribution allowed to read from the images bucket. Empty string disables the OAC policy."
+  type        = string
+  default     = ""
+}
+
+variable "image_tag" {
+  description = "Git commit SHA used to tag the application container images."
+  type        = string
+  default     = "bootstrap"
+}
+
 variable "ssh_ingress_cidr" {
   description = "Optional single IPv4 CIDR allowed to SSH, e.g. 198.51.100.25/32. Null disables SSH."
   type        = string
@@ -103,9 +115,4 @@ variable "ec2_key_name" {
     condition     = var.ssh_ingress_cidr == null || var.ec2_key_name != null
     error_message = "Set ec2_key_name when enabling SSH ingress; otherwise leave SSH disabled and use SSM."
   }
-}
-variable "cloudfront_distribution_arn" {
-  description = "ARN of the CloudFront distribution allowed to read from the images bucket. Empty string disables the OAC policy."
-  type        = string
-  default     = ""
 }

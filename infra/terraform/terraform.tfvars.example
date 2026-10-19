@@ -3,6 +3,3 @@ project_name  = "finalproject"
 environment   = "dev"
 instance_type = "t3.micro"
 db_password   = "REPLACE_WITH_A_UNIQUE_SECRET_AT_LEAST_16_CHARS"
-
-# Set your public IPv4 /32 if SSH access is needed. Keep null to disable SSH and use SSM.
-ssh_ingress_cidr = null
