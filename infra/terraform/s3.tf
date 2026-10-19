@@ -2,6 +2,22 @@
 # kept first here for readability.
 data "aws_caller_identity" "current" {}
 
+# --- Customer-managed KMS key for S3 encryption (all app buckets) ------
+resource "aws_kms_key" "s3" {
+  description             = "Customer-managed key for S3 bucket encryption in ${var.project_name}-${var.environment}."
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-s3"
+  }
+}
+
+resource "aws_kms_alias" "s3" {
+  name          = "alias/${var.project_name}-${var.environment}-s3"
+  target_key_id = aws_kms_key.s3.key_id
+}
+
 # --- Бакет для изображений -------------------------------------------------
 # Приватный бакет. Публичный доступ закрыт на уровне Public Access Block.
 # Публичная раздача статики должна идти через CloudFront + OAC (см. ниже
@@ -45,7 +61,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "images" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3.arn
     }
     bucket_key_enabled = true
   }
@@ -93,7 +110,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "images_logs" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3.arn
     }
     bucket_key_enabled = true
   }
