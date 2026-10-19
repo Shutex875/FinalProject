@@ -104,3 +104,8 @@ variable "ec2_key_name" {
     error_message = "Set ec2_key_name when enabling SSH ingress; otherwise leave SSH disabled and use SSM."
   }
 }
+variable "cloudfront_distribution_arn" {
+  description = "ARN of the CloudFront distribution allowed to read from the images bucket. Empty string disables the OAC policy."
+  type        = string
+  default     = ""
+}

@@ -1,6 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
-import axios from 'axios';
 import { authApi, setAccessToken } from './api';
 
 export const AuthContext = createContext();
@@ -85,13 +84,10 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const backgroundRefresh = async () => {
             try {
-                const response = await axios.post('/auth/refresh', {}, {
-                    baseURL: process.env.REACT_APP_API_URL || 'http://13.38.76.64:5000',
-                    withCredentials: true
-                });
-                if (response.data?.token) {
-                    setToken(response.data.token);
-                    setUser(jwtDecode(response.data.token));
+                const response = await authApi.refresh();
+                if (response?.token) {
+                    setToken(response.token);
+                    setUser(jwtDecode(response.token));
                 }
             } catch (refreshError) {
                 console.log('Background refresh skipped or failed');

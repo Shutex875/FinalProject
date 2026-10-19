@@ -42,19 +42,17 @@ services:
         max-file: "3"
 
   client:
-      image: nginx:alpine
-      container_name: finalproject-client-1
-      ports:
-        - "3000:80"
-      volumes:
-        - ./client/build:/usr/share/nginx/html
-      depends_on:
-        - server
-      restart: unless-stopped
-      logging:
-        options:
-          max-size: "10m"
-          max-file: "3"
+    build: ./client
+    container_name: finalproject-client-1
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
