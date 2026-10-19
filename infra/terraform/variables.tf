@@ -91,28 +91,30 @@ variable "image_tag" {
   default     = "bootstrap"
 }
 
-variable "ssh_ingress_cidr" {
-  description = "Optional single IPv4 CIDR allowed to SSH, e.g. 198.51.100.25/32. Null disables SSH."
-  type        = string
-  default     = null
-  nullable    = true
+variable "ssh_ingress_cidrs" {
+  description = "Optional list of IPv4 CIDRs allowed to SSH, e.g. [\"198.51.100.25/32\"]. Empty list disables SSH (recommended; use SSM instead)."
+  type        = list(string)
+  default     = []
+  nullable    = false
 
   validation {
-    condition = var.ssh_ingress_cidr == null || (
-      can(cidrnetmask(var.ssh_ingress_cidr)) && var.ssh_ingress_cidr != "0.0.0.0/0"
-    )
-    error_message = "SSH must be disabled or limited to a valid, non-public IPv4 CIDR."
+    condition = alltrue([
+      for cidr in var.ssh_ingress_cidrs :
+      can(cidrnetmask(cidr)) && cidr != "0.0.0.0/0"
+    ])
+    error_message = "Each SSH CIDR must be a valid, non-public IPv4 CIDR (the world-open 0.0.0.0/0 is not allowed)."
   }
 }
 
 variable "ec2_key_name" {
-  description = "Existing EC2 key pair name. Required only when ssh_ingress_cidr is set."
+  description = "Existing EC2 key pair name. Required only when ssh_ingress_cidrs is non-empty."
   type        = string
   default     = null
   nullable    = true
 
   validation {
-    condition     = var.ssh_ingress_cidr == null || var.ec2_key_name != null
+    condition     = length(var.ssh_ingress_cidrs) == 0 || var.ec2_key_name != null
     error_message = "Set ec2_key_name when enabling SSH ingress; otherwise leave SSH disabled and use SSM."
   }
 }
+

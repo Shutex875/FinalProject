@@ -3,3 +3,20 @@ project_name  = "finalproject"
 environment   = "dev"
 instance_type = "t3.micro"
 db_password   = "REPLACE_WITH_A_UNIQUE_SECRET_AT_LEAST_16_CHARS"
+
+# --- Optional SSH access (least privilege: disabled by default) --------------
+# SSH is closed unless you explicitly list allowed CIDRs below. Prefer SSM
+# Session Manager and leave this empty. Each entry must be a valid, non-public
+# IPv4 CIDR (0.0.0.0/0 is rejected).
+#
+# Set ec2_key_name when enabling SSH (it is required whenever this list is non-empty).
+#
+# ssh_ingress_cidrs = ["203.0.113.10/32"]
+# ec2_key_name      = "my-existing-key-pair"
+#
+# Alternatively, supply the value without editing files, via an environment variable:
+#   export TF_VAR_ssh_ingress_cidrs='["203.0.113.10/32"]'
+#   export TF_VAR_ec2_key_name='my-existing-key-pair'
+# or per-command:
+#   terraform plan -var='ssh_ingress_cidrs=["203.0.113.10/32"]' -var='ec2_key_name=my-existing-key-pair'
+

@@ -37,7 +37,8 @@ Copy-Item infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfv
 notepad infra/terraform/terraform.tfvars
 ```
 
-Set `db_password` to a unique password (at least 16 characters). If SSH is needed, set `ssh_ingress_cidr` to your public IP in `/32` notation and `ec2_key_name` to an existing EC2 key pair. Leave SSH disabled by keeping the CIDR `null`; use SSM Session Manager instead. Do not commit `terraform.tfvars`.
+
+Set `db_password` to a unique password (at least 16 characters). If SSH is needed, set `ssh_ingress_cidrs` to a list of allowed public IPs in `/32` notation (for example `["203.0.113.10/32"]`) and `ec2_key_name` to an existing EC2 key pair. Leave SSH disabled by keeping the list empty (`[]`); use SSM Session Manager instead. Do not commit `terraform.tfvars`.
 
 Initialize the remote backend using the resources created above:
 
@@ -86,12 +87,11 @@ Secrets: `RDS_USERNAME`, `RDS_PASSWORD` (also used as `TF_VAR_db_password`), `JW
 ### Required IAM permissions for the deployer role
 
 The role assumed by CI needs the permissions in `iam/github-actions-deployer-additional-policy.json` (ECR push, Terraform refresh reads, SSM send-command, KMS key management for S3 encryption). Attach it in addition to the baseline deployer policy and review it against the resources your stack creates.
-
 The SSH ingress rule uses a stable `for_each` key, and the `moved` block maps the existing `ssh[0]` state address to that key without recreating the rule. The plan check fails if any managed resource would be deleted or replaced. This prevents a missing Actions variable or a Terraform change from silently passing CI with a destructive plan. Review the full plan and update the expected infrastructure configuration before changing this protection.
 
 ## Security and operational notes
 
-- Only the web listener ports 80/443 are internet-facing. SSH is a separate optional ingress rule constrained to `ssh_ingress_cidr`; no SSH rule is created by default.
+- Only the web listener ports 80/443 are internet-facing. SSH is a separate optional ingress rule constrained to the CIDRs in `ssh_ingress_cidrs`; no SSH rule is created by default (empty list).
 - RDS is not publicly accessible and its inbound PostgreSQL rule references only the EC2 security group. Private subnets have no internet route/NAT.
 - EC2 has SSM and CloudWatch Agent managed policies plus scoped ECR pull and S3 access (including `kms:Decrypt`/`kms:GenerateDataKey` on the S3 key). It never receives the database credentials through user data.
 - S3 buckets (`images`, `images_logs`, `artifacts`) are encrypted with a customer-managed KMS key (`aws_kms_key.s3`, rotation enabled); public access is blocked.

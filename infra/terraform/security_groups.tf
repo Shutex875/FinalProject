@@ -23,29 +23,32 @@ resource "aws_vpc_security_group_ingress_rule" "http_https" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ssh" {
-  for_each = var.ssh_ingress_cidr == null ? {} : {
-    administrator = var.ssh_ingress_cidr
-  }
+  for_each = toset(var.ssh_ingress_cidrs)
+
   security_group_id = aws_security_group.ec2.id
   cidr_ipv4         = each.value
   from_port         = 22
   to_port           = 22
   ip_protocol       = "tcp"
-  description       = "SSH from the explicitly configured administrator CIDR only."
+  description       = "SSH from explicitly configured CIDR ${each.value}."
 }
 
-resource "aws_vpc_security_group_ingress_rule" "ssh_mentor" {
-  security_group_id = aws_security_group.ec2.id
-  cidr_ipv4         = "80.238.101.8/32"
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-  description       = "SSH access for the mentor from the explicitly authorized IPv4 address."
-}
-
+# Migrate the previously keyed "administrator" SSH rule to the CIDR-keyed address
+# so the existing live security group rule is preserved (no destroy/recreate).
+# Update the right-hand key if your configured ssh_ingress_cidr value differs.
 moved {
-  from = aws_vpc_security_group_ingress_rule.ssh[0]
-  to   = aws_vpc_security_group_ingress_rule.ssh["administrator"]
+  from = aws_vpc_security_group_ingress_rule.ssh["administrator"]
+  to   = aws_vpc_security_group_ingress_rule.ssh["79.168.197.171/32"]
+}
+
+# The hardcoded mentor SSH rule is removed and folded into var.ssh_ingress_cidrs.
+# To keep that access, add its CIDR to ssh_ingress_cidrs; otherwise it is dropped.
+removed {
+  from = aws_vpc_security_group_ingress_rule.ssh_mentor
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # Required for web traffic and SSM/package updates; the destination is limited to TCP 80/443.
