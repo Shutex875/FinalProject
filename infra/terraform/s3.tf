@@ -2,8 +2,6 @@
 # kept first here for readability.
 data "aws_caller_identity" "current" {}
 
-data "aws_region" "current" {}
-
 # --- Бакет для изображений -------------------------------------------------
 # Приватный бакет. Публичный доступ закрыт на уровне Public Access Block.
 # Публичная раздача статики должна идти через CloudFront + OAC (см. ниже

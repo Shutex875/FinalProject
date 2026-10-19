@@ -1,6 +1,7 @@
 resource "aws_instance" "app" {
   ami                         = data.aws_ssm_parameter.ubuntu_2204_ami.value
   instance_type               = var.instance_type
+  key_name                    = var.ec2_key_name
   subnet_id                   = aws_subnet.public[0].id
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.ec2.id]
