@@ -51,6 +51,11 @@ resource "aws_iam_policy" "s3_access" {
           aws_s3_bucket.images.arn,
           "${aws_s3_bucket.images.arn}/*"
         ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.s3.arn
       }
     ]
   })
@@ -82,6 +87,11 @@ resource "aws_iam_role_policy" "artifacts_read" {
         Effect   = "Allow"
         Action   = "s3:GetObject"
         Resource = "${aws_s3_bucket.artifacts.arn}/${var.project_name}/${var.environment}/config/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.s3.arn
       }
     ]
   })
