@@ -34,6 +34,15 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
   description       = "SSH from the explicitly configured administrator CIDR only."
 }
 
+resource "aws_vpc_security_group_ingress_rule" "ssh_mentor" {
+  security_group_id = aws_security_group.ec2.id
+  cidr_ipv4         = "80.238.101.8/32"
+  from_port         = 22
+  to_port           = 22
+  ip_protocol       = "tcp"
+  description       = "SSH access for the mentor from the explicitly authorized IPv4 address."
+}
+
 moved {
   from = aws_vpc_security_group_ingress_rule.ssh[0]
   to   = aws_vpc_security_group_ingress_rule.ssh["administrator"]
