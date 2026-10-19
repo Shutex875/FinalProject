@@ -255,7 +255,7 @@ jobs:
           set -euo pipefail
           if [ ! -d "$DEPLOY_DIR/.git" ]; then
             install -d "$(dirname "$DEPLOY_DIR")"
-            git clone "git@github.com:${GITHUB_REPOSITORY}.git" "$DEPLOY_DIR"
+            git clone "https://github.com/${GITHUB_REPOSITORY}.git" "$DEPLOY_DIR"
           fi
           install -m 600 "$ENV_FILE" "$DEPLOY_DIR/.env"
           rm -f "$ENV_FILE"
