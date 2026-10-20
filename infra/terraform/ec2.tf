@@ -8,11 +8,16 @@ resource "aws_instance" "app" {
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
 
   user_data = templatefile("${path.module}/templates/user-data.sh.tpl", {
-    aws_region       = var.aws_region
-    project_name     = var.project_name
-    environment      = var.environment
-    artifacts_bucket = aws_s3_bucket.artifacts.id
-    config_prefix    = "${var.project_name}/${var.environment}/config/current"
+    aws_region        = var.aws_region
+    project_name      = var.project_name
+    environment       = var.environment
+    artifacts_bucket  = aws_s3_bucket.artifacts.id
+    config_prefix     = "${var.project_name}/${var.environment}/config/current"
+    cw_log_group_name = aws_cloudwatch_log_group.app.name
+    # Base64-encode the static CloudWatch Agent config so its ${aws:...}
+    # placeholders are passed through verbatim (they are resolved by the agent,
+    # not by Terraform's templatefile).
+    cw_agent_config_b64 = filebase64("${path.module}/files/amazon-cloudwatch-agent.json")
   })
 
   root_block_device {
@@ -34,3 +39,4 @@ resource "aws_instance" "app" {
     Project  = var.project_name
   }
 }
+

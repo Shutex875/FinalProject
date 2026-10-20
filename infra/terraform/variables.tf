@@ -118,3 +118,17 @@ variable "ec2_key_name" {
   }
 }
 
+variable "cloudwatch_log_retention_days" {
+  description = "Retention in days for the application CloudWatch log group. 0 means never expire."
+  type        = number
+  default     = 14
+
+  validation {
+    condition = contains(
+      [0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653],
+      var.cloudwatch_log_retention_days
+    )
+    error_message = "cloudwatch_log_retention_days must be a value supported by CloudWatch Logs (0 = never expire)."
+  }
+}
+
