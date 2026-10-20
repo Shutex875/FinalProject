@@ -13,3 +13,27 @@ resource "aws_cloudwatch_log_group" "app" {
     Project = var.project_name
   }
 }
+
+# CloudWatch Metric Alarm for high CPU utilization on the application EC2 instance
+resource "aws_cloudwatch_metric_alarm" "app_instance_high_cpu" {
+  alarm_name          = "${local.name_prefix}-app-instance-high-cpu"
+  alarm_description   = "Triggers when average CPU utilization on the application EC2 instance is >= 85% for 2 consecutive 120s periods."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  threshold           = 85
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  statistic           = "Average"
+  period              = 120
+
+  dimensions = {
+    InstanceId = aws_instance.app.id
+  }
+
+  treat_missing_data = "missing"
+
+  tags = {
+    Name    = "${local.name_prefix}-app-instance-high-cpu"
+    Project = var.project_name
+  }
+}
