@@ -5,11 +5,10 @@
  *   description: Product catalog management
  */
 
- import express from 'express';
- import { PrismaClient } from '@prisma/client';
+  import express from 'express';
+ import prisma from '../prismaClient.js';
 
  const router = express.Router();
- const prisma = new PrismaClient();
 
 /**
  * @swagger

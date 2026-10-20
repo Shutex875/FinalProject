@@ -51,6 +51,11 @@ resource "aws_iam_policy" "s3_access" {
           aws_s3_bucket.images.arn,
           "${aws_s3_bucket.images.arn}/*"
         ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.s3.arn
       }
     ]
   })
@@ -59,4 +64,60 @@ resource "aws_iam_policy" "s3_access" {
 resource "aws_iam_role_policy_attachment" "s3_access_attachment" {
   role       = aws_iam_role.ec2.name
   policy_arn = aws_iam_policy.s3_access.arn
+}
+
+resource "aws_iam_role_policy" "artifacts_read" {
+  name = "${local.name_prefix}-artifacts-read"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.artifacts.arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["${var.project_name}/${var.environment}/config", "${var.project_name}/${var.environment}/config/*"]
+          }
+        }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.artifacts.arn}/${var.project_name}/${var.environment}/config/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.s3.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "ecr_pull" {
+  name = "${local.name_prefix}-ecr-pull"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ]
+        Resource = [aws_ecr_repository.server.arn, aws_ecr_repository.client.arn]
+      }
+    ]
+  })
 }

@@ -79,33 +79,56 @@ variable "db_password" {
   }
 }
 
-variable "ssh_ingress_cidr" {
-  description = "Optional single IPv4 CIDR allowed to SSH, e.g. 198.51.100.25/32. Null disables SSH."
-  type        = string
-  default     = null
-  nullable    = true
-
-  validation {
-    condition = var.ssh_ingress_cidr == null || (
-      can(cidrnetmask(var.ssh_ingress_cidr)) && var.ssh_ingress_cidr != "0.0.0.0/0"
-    )
-    error_message = "SSH must be disabled or limited to a valid, non-public IPv4 CIDR."
-  }
-}
-
-variable "ec2_key_name" {
-  description = "Existing EC2 key pair name. Required only when ssh_ingress_cidr is set."
-  type        = string
-  default     = null
-  nullable    = true
-
-  validation {
-    condition     = var.ssh_ingress_cidr == null || var.ec2_key_name != null
-    error_message = "Set ec2_key_name when enabling SSH ingress; otherwise leave SSH disabled and use SSM."
-  }
-}
 variable "cloudfront_distribution_arn" {
   description = "ARN of the CloudFront distribution allowed to read from the images bucket. Empty string disables the OAC policy."
   type        = string
   default     = ""
 }
+
+variable "image_tag" {
+  description = "Git commit SHA used to tag the application container images."
+  type        = string
+  default     = "bootstrap"
+}
+
+variable "ssh_ingress_cidrs" {
+  description = "Optional list of IPv4 CIDRs allowed to SSH, e.g. [\"198.51.100.25/32\"]. Empty list disables SSH (recommended; use SSM instead)."
+  type        = list(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for cidr in var.ssh_ingress_cidrs :
+      can(cidrnetmask(cidr)) && cidr != "0.0.0.0/0"
+    ])
+    error_message = "Each SSH CIDR must be a valid, non-public IPv4 CIDR (the world-open 0.0.0.0/0 is not allowed)."
+  }
+}
+
+variable "ec2_key_name" {
+  description = "Existing EC2 key pair name. Required only when ssh_ingress_cidrs is non-empty."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = length(var.ssh_ingress_cidrs) == 0 || var.ec2_key_name != null
+    error_message = "Set ec2_key_name when enabling SSH ingress; otherwise leave SSH disabled and use SSM."
+  }
+}
+
+variable "cloudwatch_log_retention_days" {
+  description = "Retention in days for the application CloudWatch log group. 0 means never expire."
+  type        = number
+  default     = 14
+
+  validation {
+    condition = contains(
+      [0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653],
+      var.cloudwatch_log_retention_days
+    )
+    error_message = "cloudwatch_log_retention_days must be a value supported by CloudWatch Logs (0 = never expire)."
+  }
+}
+

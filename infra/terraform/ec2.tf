@@ -7,20 +7,18 @@ resource "aws_instance" "app" {
   vpc_security_group_ids      = [aws_security_group.ec2.id]
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
 
-  user_data = <<-USERDATA
-    #!/bin/bash
-    set -euxo pipefail
-    apt-get update
-    apt-get install -y ca-certificates curl
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    systemctl enable --now docker
-    usermod -aG docker ubuntu
-  USERDATA
+  user_data = templatefile("${path.module}/templates/user-data.sh.tpl", {
+    aws_region        = var.aws_region
+    project_name      = var.project_name
+    environment       = var.environment
+    artifacts_bucket  = aws_s3_bucket.artifacts.id
+    config_prefix     = "${var.project_name}/${var.environment}/config/current"
+    cw_log_group_name = aws_cloudwatch_log_group.app.name
+    # Base64-encode the static CloudWatch Agent config so its ${aws:...}
+    # placeholders are passed through verbatim (they are resolved by the agent,
+    # not by Terraform's templatefile).
+    cw_agent_config_b64 = filebase64("${path.module}/files/amazon-cloudwatch-agent.json")
+  })
 
   root_block_device {
     encrypted             = true
@@ -35,5 +33,10 @@ resource "aws_instance" "app" {
     http_put_response_hop_limit = 1
   }
 
-  tags = { Name = "${local.name_prefix}-app" }
+  tags = {
+    Name     = "${local.name_prefix}-app"
+    ImageTag = var.image_tag
+    Project  = var.project_name
+  }
 }
+

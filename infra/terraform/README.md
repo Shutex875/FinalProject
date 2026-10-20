@@ -5,7 +5,7 @@ This stack creates an IPv4 VPC, a public EC2 host, private PostgreSQL RDS, secur
 ## Layout
 
 - `bootstrap/`: creates the S3 bucket and DynamoDB table required before a remote state backend can be initialized. Its state stays local; keep that state file backed up and private.
-- Root `.tf` files: the application network and compute/database stack. State is stored remotely in the bootstrap S3 bucket and locked with the DynamoDB table (and the S3 lockfile).
+- Root `.tf` files: the application network, compute/database, S3/KMS and IAM stack. State is stored remotely in the bootstrap S3 bucket with server-side encryption and locked with the DynamoDB table.
 
 ## Prerequisites
 
@@ -37,7 +37,8 @@ Copy-Item infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfv
 notepad infra/terraform/terraform.tfvars
 ```
 
-Set `db_password` to a unique password (at least 16 characters). If SSH is needed, set `ssh_ingress_cidr` to your public IP in `/32` notation and `ec2_key_name` to an existing EC2 key pair. Leave SSH disabled by keeping the CIDR `null`; use SSM Session Manager instead. Do not commit `terraform.tfvars`.
+
+Set `db_password` to a unique password (at least 16 characters). If SSH is needed, set `ssh_ingress_cidrs` to a list of allowed public IPs in `/32` notation (for example `["203.0.113.10/32"]`) and `ec2_key_name` to an existing EC2 key pair. Leave SSH disabled by keeping the list empty (`[]`); use SSM Session Manager instead. Do not commit `terraform.tfvars`.
 
 Initialize the remote backend using the resources created above:
 
@@ -47,8 +48,7 @@ terraform -chdir=infra/terraform init `
   -backend-config="key=finalproject/dev/terraform.tfstate" `
   -backend-config="region=$stateRegion" `
   -backend-config="dynamodb_table=$lockTable" `
-  -backend-config="encrypt=true" `
-  -backend-config="use_lockfile=true"
+  -backend-config="encrypt=true"
 ```
 
 Review the plan before applying:
@@ -61,25 +61,43 @@ terraform -chdir=infra/terraform output
 
 The `db_password` input is marked sensitive in CLI output, but Terraform still records RDS credentials in state. The S3 bucket enables versioning and server-side encryption; restrict access to the bucket/table to the Terraform operators.
 
-## Configure Terraform CI
+## How CI/CD deploys (`.github/workflows/ci-cd.yml`)
 
-The GitHub Actions plan reads its non-secret infrastructure inputs from repository Actions variables and the database password from the existing `RDS_PASSWORD` Actions secret. Configure these repository variables to match the inputs used to create the resources already recorded in the remote state:
+Deployment is fully automated by GitHub Actions; no local machine is involved in the normal release flow.
 
-- `TERRAFORM_PROJECT_NAME` (currently `deck-market`)
-- `TERRAFORM_ENVIRONMENT` (currently `development`)
-- `TERRAFORM_EC2_KEY_NAME` (currently `ec2-final-project` when SSH is enabled)
-- `TERRAFORM_SSH_INGRESS_CIDR` (the currently authorized administrator IPv4 CIDR, such as a `/32`; CI requires this value so a missing variable cannot remove the rule)
+- The `release` job runs only on `push` or `workflow_dispatch` targeting `main`/`master`. Pull requests and feature branches only run the check jobs (`terraform-check`, `backend-check`, `frontend-check`).
+- CI authenticates to AWS via GitHub OIDC (`id-token: write`); there are no long-lived AWS keys.
+- Flow: `terraform init -backend-config=...` → ensure ECR repos + artifacts bucket → build/push images to ECR (tag = commit SHA) → upload rendered manifests and `.env` to S3 → `terraform apply` → deploy on the EC2 host through AWS Systems Manager (`AWS-RunShellScript` send-command).
+- The EC2 host runs `deploy.sh <sha>`, pulls the image from ECR, starts `docker compose`, and waits for a health check. No SSH is required (SSH ingress is optional and disabled unless configured).
 
+### Required repository Actions variables (env of `release`)
+
+Non-secret inputs are read from Actions **variables**; the database password comes from the **`RDS_PASSWORD`** secret. Configure them to match the resources already recorded in the remote state:
+
+- `AWS_ROLE_ARN` — IAM role assumed through OIDC.
+- `AWS_REGION` (default `eu-west-3`).
+- `PROJECT_NAME` (currently `deck-market`).
+- `ENVIRONMENT` (currently `development`; defaults to `development` if unset). Mirrored into `TF_VAR_environment`.
+- `TF_STATE_BUCKET`, `TF_STATE_KEY` (default `terraform.tfstate`), `TF_LOCK_TABLE` — remote backend for CI.
+- `ARTIFACTS_BUCKET` — S3 bucket holding release manifests; must equal `${PROJECT_NAME}-${ENVIRONMENT}-artifacts-<account-id>`.
+- `RDS_HOST`, `RDS_DB_NAME`, `CLIENT_URL` — runtime application configuration.
+
+Secrets: `RDS_USERNAME`, `RDS_PASSWORD` (also used as `TF_VAR_db_password`), `JWT_SECRET`, `JWT_REFRESH_SECRET`.
+
+### Required IAM permissions for the deployer role
+
+The role assumed by CI needs the permissions in `iam/github-actions-deployer-additional-policy.json` (ECR push, Terraform refresh reads, SSM send-command, KMS key management for S3 encryption). Attach it in addition to the baseline deployer policy and review it against the resources your stack creates.
 The SSH ingress rule uses a stable `for_each` key, and the `moved` block maps the existing `ssh[0]` state address to that key without recreating the rule. The plan check fails if any managed resource would be deleted or replaced. This prevents a missing Actions variable or a Terraform change from silently passing CI with a destructive plan. Review the full plan and update the expected infrastructure configuration before changing this protection.
 
 ## Security and operational notes
 
-- Only the web listener ports 80/443 are internet-facing. SSH is a separate optional ingress rule constrained to `ssh_ingress_cidr`; no SSH rule is created by default.
+- Only the web listener ports 80/443 are internet-facing. SSH is a separate optional ingress rule constrained to the CIDRs in `ssh_ingress_cidrs`; no SSH rule is created by default (empty list).
 - RDS is not publicly accessible and its inbound PostgreSQL rule references only the EC2 security group. Private subnets have no internet route/NAT.
-- EC2 has SSM and CloudWatch Agent managed policies. No ECR permissions are attached because no image/repository is configured here.
-- The EC2 bootstrap installs Docker but does not deploy the React/Express application. Add an image/release deployment flow separately; do not put database credentials in user data.
+- EC2 has SSM and CloudWatch Agent managed policies plus scoped ECR pull and S3 access (including `kms:Decrypt`/`kms:GenerateDataKey` on the S3 key). It never receives the database credentials through user data.
+- S3 buckets (`images`, `images_logs`, `artifacts`) are encrypted with a customer-managed KMS key (`aws_kms_key.s3`, rotation enabled); public access is blocked.
+- Application deployment runs over SSM; the EC2 instance pulls images from ECR and manifests from S3. No SSH access is required.
 - This is a development-oriented single-AZ RDS instance with deletion protection disabled and final snapshot skipped. Change those settings before using it for production data.
-- HashiCorp documents DynamoDB locking as deprecated in favor of S3 lockfiles. This backend enables both to meet the requested DynamoDB locking requirement while allowing the S3 lockfile mechanism.
+- State locking uses the DynamoDB table. `use_lockfile` is intentionally not set, so the workflow relies on DynamoDB locking only.
 
 ## Destroy the application stack
 
