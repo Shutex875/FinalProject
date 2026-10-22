@@ -86,6 +86,7 @@ AWS_REGION="${AWS_REGION:-eu-west-3}"
 PROJECT_NAME="${PROJECT_NAME:-finalproject}"
 ENVIRONMENT="${ENVIRONMENT:-production}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/${PROJECT_NAME}/${ENVIRONMENT}}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 ECR_REPO_URL="${ECR_REPO_URL:-}"
 ENV_FILE="${ENV_FILE:-.env}"
@@ -119,11 +120,13 @@ cat > "$WORK_DIR/package/deploy-remote.sh" <<'REMOTE'
 set -Eeuo pipefail
 
 : "${APP_DIR:?APP_DIR is required}"
+: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}"
 : "${AWS_REGION:?AWS_REGION is required}"
 : "${ECR_REPO_URL:?ECR_REPO_URL is required}"
 : "${IMAGE_TAG:?IMAGE_TAG is required}"
 : "${HEALTH_TIMEOUT_SECONDS:?HEALTH_TIMEOUT_SECONDS is required}"
 
+export COMPOSE_PROJECT_NAME
 cd "$APP_DIR"
 export ECR_REPO_URL IMAGE_TAG
 docker compose --env-file .env -f docker-compose.prod.yml config --quiet
@@ -184,7 +187,7 @@ case "$DEPLOY_METHOD" in
     S3_URI="s3://${ARTIFACTS_BUCKET}/${S3_KEY}"
     aws s3 cp "$WORK_DIR/deploy-package.tar.gz" "$S3_URI" --region "$AWS_REGION"
 
-    REMOTE_COMMAND="set -eu; if ! command -v aws >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y awscli; fi; aws s3 cp $(quote_remote "$S3_URI") /tmp/deploy-${IMAGE_TAG}.tar.gz --region $(quote_remote "$AWS_REGION"); mkdir -p $(quote_remote "$DEPLOY_DIR"); tar -xzf /tmp/deploy-${IMAGE_TAG}.tar.gz -C $(quote_remote "$DEPLOY_DIR"); rm -f /tmp/deploy-${IMAGE_TAG}.tar.gz; env APP_DIR=$(quote_remote "$DEPLOY_DIR") AWS_REGION=$(quote_remote "$AWS_REGION") ECR_REPO_URL=$(quote_remote "$ECR_REPO_URL") IMAGE_TAG=$(quote_remote "$IMAGE_TAG") HEALTH_TIMEOUT_SECONDS=$(quote_remote "$HEALTH_TIMEOUT_SECONDS") bash $(quote_remote "$DEPLOY_DIR/deploy-remote.sh")"
+    REMOTE_COMMAND="set -eu; if ! command -v aws >/dev/null 2>&1; then export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get install -y awscli; fi; aws s3 cp $(quote_remote "$S3_URI") /tmp/deploy-${IMAGE_TAG}.tar.gz --region $(quote_remote "$AWS_REGION"); mkdir -p $(quote_remote "$DEPLOY_DIR"); tar -xzf /tmp/deploy-${IMAGE_TAG}.tar.gz -C $(quote_remote "$DEPLOY_DIR"); rm -f /tmp/deploy-${IMAGE_TAG}.tar.gz; env APP_DIR=$(quote_remote "$DEPLOY_DIR") COMPOSE_PROJECT_NAME=$(quote_remote "$COMPOSE_PROJECT_NAME") AWS_REGION=$(quote_remote "$AWS_REGION") ECR_REPO_URL=$(quote_remote "$ECR_REPO_URL") IMAGE_TAG=$(quote_remote "$IMAGE_TAG") HEALTH_TIMEOUT_SECONDS=$(quote_remote "$HEALTH_TIMEOUT_SECONDS") bash $(quote_remote "$DEPLOY_DIR/deploy-remote.sh")"
     INPUT_JSON="$(jq -n --arg instance "$SSM_INSTANCE_ID" --arg command "$REMOTE_COMMAND" '{DocumentName:"AWS-RunShellScript",InstanceIds:[$instance],Parameters:{commands:[$command]},TimeoutSeconds:600}')"
     COMMAND_ID="$(aws ssm send-command --cli-input-json "$INPUT_JSON" --region "$AWS_REGION" --query 'Command.CommandId' --output text)"
     printf 'SSM command %s sent to %s\n' "$COMMAND_ID" "$SSM_INSTANCE_ID"
