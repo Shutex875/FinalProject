@@ -2,9 +2,9 @@ name: Enterprise CI/CD
 
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main, master, feature/enterprise-cicd-ssm]
   push:
-    branches: [main, master]
+    branches: [main, master, feature/enterprise-cicd-ssm]
   workflow_dispatch:
 
 permissions:
