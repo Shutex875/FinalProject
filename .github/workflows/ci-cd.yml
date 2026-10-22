@@ -368,11 +368,18 @@ jobs:
         working-directory: infra/terraform
         shell: bash
         env:
+          TF_VAR_ec2_key_name: ${{ vars.TERRAFORM_EC2_KEY_NAME }}
+          TF_VAR_ssh_ingress_cidrs: '["${{ vars.TERRAFORM_SSH_INGRESS_CIDR }}"]'
           # Resources that must never be destroyed or replaced by an automated
           # release. A plan that deletes/replaces any of these fails the pipeline.
           PROTECTED_RESOURCES: "aws_db_instance aws_cloudwatch_log_group aws_s3_bucket aws_ecr_repository aws_instance"
         run: |
           set -euo pipefail
+
+          if [[ -z "$TF_VAR_ssh_ingress_cidrs" || "$TF_VAR_ssh_ingress_cidrs" == '[""]' ]]; then
+            echo "TERRAFORM_SSH_INGRESS_CIDR must be set explicitly; CI must not silently plan to remove SSH ingress." >&2
+            exit 1
+          fi
 
           echo "Generating Terraform plan (saved to tfplan)..."
           set +e
