@@ -156,13 +156,14 @@ jobs:
       RDS_HOST: ${{ vars.RDS_HOST }}
       RDS_DB_NAME: ${{ vars.RDS_DB_NAME }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
-      RDS_USERNAME: ${{ secrets.RDS_USERNAME }}
+      RDS_USERNAME: ${{ vars.TERRAFORM_DB_USERNAME || 'appuser' }}
       RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
       TF_VAR_project_name: ${{ vars.PROJECT_NAME }}
       TF_VAR_environment: ${{ vars.ENVIRONMENT || 'development' }}
       TF_VAR_aws_region: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      TF_VAR_db_username: ${{ vars.TERRAFORM_DB_USERNAME || 'appuser' }}
       TF_VAR_db_password: ${{ secrets.RDS_PASSWORD }}
       TF_VAR_image_tag: ${{ github.sha }}-${{ github.run_attempt }}
     steps:
