@@ -2,9 +2,9 @@ name: Enterprise CI/CD
 
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main, master, feature/enterprise-cicd-ssm]
   push:
-    branches: [main, master]
+    branches: [main, master, feature/enterprise-cicd-ssm]
   workflow_dispatch:
 
 permissions:
@@ -152,7 +152,7 @@ jobs:
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'terraform.tfstate' }}
       TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
       ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
-      IMAGE_TAG: ${{ github.sha }}
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_attempt }}
       RDS_HOST: ${{ vars.RDS_HOST }}
       RDS_DB_NAME: ${{ vars.RDS_DB_NAME }}
       CLIENT_URL: ${{ vars.CLIENT_URL }}
