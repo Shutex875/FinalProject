@@ -478,6 +478,7 @@ jobs:
         env:
           INSTANCE_ID: ${{ steps.terraform-apply.outputs.instance_id }}
           ECR_REPO_URL: ${{ steps.ecr.outputs.server_url }}
+          COMPOSE_PROJECT_NAME: finalproject
         run: |
           set -euo pipefail
           online=false
@@ -503,5 +504,5 @@ jobs:
           }
           (
             cd "$release_dir"
-            DEPLOY_METHOD=ssm SSM_INSTANCE_ID="$INSTANCE_ID" ECR_REPO_URL="$ECR_REPO_URL" bash ./deploy.sh
+            DEPLOY_METHOD=ssm SSM_INSTANCE_ID="$INSTANCE_ID" ECR_REPO_URL="$ECR_REPO_URL" COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" bash ./deploy.sh
           )
