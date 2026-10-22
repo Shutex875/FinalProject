@@ -27,11 +27,11 @@
       "Effect": "Allow",
       "Action": [
         "s3:GetBucketWebsite",
+        "s3:GetBucketLocation",
         "s3:GetBucketVersioning",
         "s3:GetBucketPublicAccessBlock",
         "s3:GetBucketPolicy",
         "s3:GetBucketAcl",
-        "s3:GetBucketLocation",
         "s3:GetBucketTagging",
         "s3:GetBucketLogging",
         "s3:GetBucketCORS",
@@ -48,6 +48,16 @@
         "rds:ListTagsForResource"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "ReadProjectBucketReplicationConfiguration",
+      "Effect": "Allow",
+      "Action": "s3:GetReplicationConfiguration",
+      "Resource": [
+        "arn:aws:s3:::deck-market-development-artifacts-394567896469",
+        "arn:aws:s3:::deck-market-development-images-394567896469",
+        "arn:aws:s3:::deck-market-development-images-logs-394567896469"
+      ]
     },
     {
       "Sid": "CheckManagedInstanceOnline",
