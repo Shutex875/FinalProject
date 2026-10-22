@@ -363,13 +363,104 @@ jobs:
           aws s3 cp "$release_dir/current/deploy.sh" "${release_prefix}/current/deploy.sh" --sse AES256
           aws s3 cp "$release_dir/current/.env" "${release_prefix}/current/.env" --sse AES256
 
+      - name: Terraform plan safety gate
+        id: plan-gate
+        working-directory: infra/terraform
+        shell: bash
+        env:
+          # Resources that must never be destroyed or replaced by an automated
+          # release. A plan that deletes/replaces any of these fails the pipeline.
+          PROTECTED_RESOURCES: "aws_db_instance aws_cloudwatch_log_group aws_s3_bucket aws_ecr_repository aws_instance"
+        run: |
+          set -euo pipefail
+
+          echo "Generating Terraform plan (saved to tfplan)..."
+          set +e
+          terraform plan \
+            -input=false \
+            -var "image_tag=$IMAGE_TAG" \
+            -detailed-exitcode \
+            -out=tfplan
+          plan_exit=$?
+          set -e
+
+          # -detailed-exitcode contract:
+          #   0 = success, no changes            -> nothing to do, safe to continue
+          #   2 = success, changes present        -> review; allowed only if non-destructive
+          #   1 = error                           -> fail the pipeline
+          case "$plan_exit" in
+            0)
+              echo "::notice title=Terraform plan::No infrastructure changes detected (exit 0)."
+              ;;
+            2)
+              echo "::notice title=Terraform plan::Changes detected (exit 2). Inspecting for destructive actions..."
+              ;;
+            1)
+              echo "::error title=Terraform plan::terraform plan failed (exit 1). Aborting before apply."
+              exit 1
+              ;;
+            *)
+              echo "::error title=Terraform plan::Unexpected terraform plan exit code: $plan_exit. Aborting."
+              exit 1
+              ;;
+          esac
+
+          echo "Rendering plan as JSON for destructive-change inspection..."
+          terraform show -json tfplan > tfplan.json
+
+          # Build the list of resource addresses (resource_changes.action contains delete)
+          # where any action is "delete" (["delete"]) or a replacement (["delete","create"]
+          # or ["create","delete"]).
+          destructive_addresses="$(jq -r '
+            [ .resource_changes[]?
+              | select(.change.actions | index("delete"))
+              | .address
+            ] | unique | .[]
+          ' tfplan.json)"
+
+          if [[ -z "$destructive_addresses" ]]; then
+            echo "::notice title=Terraform plan::No destructive actions detected. Proceeding to apply."
+            exit 0
+          fi
+
+          echo "The following resources would be destroyed or replaced:"
+          echo "$destructive_addresses" | sed 's/^/  - /'
+
+          # Fail if any destructive action targets a protected resource type.
+          blocked=""
+          while IFS= read -r address; do
+            [[ -z "$address" ]] && continue
+            for protected in $PROTECTED_RESOURCES; do
+              if [[ "$address" == "$protected".* || "$address" == "$protected"[.* ]]; then
+                blocked+="$address"$'\n'
+                break
+              fi
+            done
+          done <<< "$destructive_addresses"
+
+          if [[ -n "$blocked" ]]; then
+            echo "::error title=Terraform plan::Destructive change to a protected resource is blocked."
+            echo "::error title=Terraform plan::The following protected resources would be destroyed/replaced:"
+            echo "$blocked" | sed '/^$/d; s/^/::error::  - /'
+            echo ""
+            echo "This gate prevents accidental destruction (e.g. RDS replacement, log-group recreation)."
+            echo "To intentionally replace one of these resources, do it manually with terraform,"
+            echo "or temporarily remove it from PROTECTED_RESOURCES in this workflow after review."
+            exit 1
+          fi
+
+          echo "::warning title=Terraform plan::Non-protected resources will be destroyed; continuing."
+          echo "::notice title=Terraform plan::Plan is safe with respect to protected resources. Proceeding to apply."
+
       - name: Apply Terraform and obtain EC2 instance ID
         id: terraform-apply
         working-directory: infra/terraform
         shell: bash
         run: |
           set -euo pipefail
-          terraform apply -input=false -auto-approve -var "image_tag=$IMAGE_TAG"
+          # Apply the exact plan reviewed and validated by the safety gate above,
+          # so no drift can sneak in between plan and apply.
+          terraform apply -input=false -auto-approve tfplan
           instance_id="$(terraform output -raw instance_id)"
           [[ "$instance_id" =~ ^i-[0-9a-f]+$ ]] || { echo "Invalid Terraform instance_id output: $instance_id" >&2; exit 1; }
           echo "instance_id=$instance_id" >> "$GITHUB_OUTPUT"
