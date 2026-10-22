@@ -1,0 +1,47 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "IamRoleLifecycleProjectScoped",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:ListRolePolicies", "iam:GetRolePolicy",
+        "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:TagRole", "iam:UntagRole","iam:TagInstanceProfile", "iam:TagPolicy", "iam:TagRole"
+      ],
+      "Resource": "arn:aws:iam::394567896469:role/deck-market-*-ec2-role"
+    },
+    {
+      "Sid": "IamPassRoleEc2Only",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::394567896469:role/deck-market-*-ec2-role",
+      "Condition": { "StringEquals": { "iam:PassedToService": "ec2.amazonaws.com" } }
+    },
+    {
+      "Sid": "IamProjectPolicyLifecycle",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy", "iam:GetPolicyVersion", "iam:ListPolicyVersions", "iam:ListEntitiesForPolicy",
+        "iam:CreatePolicy", "iam:DeletePolicy", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion"
+      ],
+      "Resource": "arn:aws:iam::394567896469:policy/deck-market-*-s3-images-policy"
+    },
+    {
+      "Sid": "IamInstanceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetInstanceProfile", "iam:CreateInstanceProfile", "iam:DeleteInstanceProfile",
+        "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile"
+      ],
+      "Resource": "arn:aws:iam::394567896469:instance-profile/deck-market-*-ec2-profile"
+    },
+    {
+      "Sid": "RdsServiceLinkedRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "arn:aws:iam::394567896469:role/aws-service-role/rds.amazonaws.com/*",
+      "Condition": { "StringEquals": { "iam:AWSServiceName": "rds.amazonaws.com" } }
+    }
+  ]
+}
