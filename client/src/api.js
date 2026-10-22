@@ -36,8 +36,10 @@ instance.interceptors.response.use(
     (response) => response.data,
     async (error) => {
         const originalRequest = error.config;
+        const requestUrl = originalRequest?.url || '';
+        const isAuthEndpoint = /\/auth\/(login|register|refresh)(?:[/?]|$)/.test(requestUrl);
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
             if (isRefreshing) {
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject });
@@ -60,7 +62,10 @@ instance.interceptors.response.use(
             } catch (refreshError) {
                 processQueue(refreshError, null);
                 accessToken = null;
-                window.location.href = '/login';
+                localStorage.removeItem('accessToken');
+                if (!['/login', '/register'].includes(window.location.pathname)) {
+                    window.location.replace('/login');
+                }
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;
