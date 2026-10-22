@@ -306,7 +306,7 @@ jobs:
           context: ./server
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.ecr.outputs.server_url }}:${{ github.sha }}
+          tags: ${{ steps.ecr.outputs.server_url }}:${{ github.sha }}-${{ github.run_attempt }}
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
 
@@ -317,7 +317,7 @@ jobs:
           context: ./client
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.ecr.outputs.client_url }}:${{ github.sha }}
+          tags: ${{ steps.ecr.outputs.client_url }}:${{ github.sha }}-${{ github.run_attempt }}
           cache-from: type=gha,scope=client
           cache-to: type=gha,mode=max,scope=client
 
