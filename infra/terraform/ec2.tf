@@ -7,6 +7,8 @@ resource "aws_instance" "app" {
   vpc_security_group_ids      = [aws_security_group.ec2.id]
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
 
+  user_data_replace_on_change = false
+
   user_data = templatefile("${path.module}/templates/user-data.sh.tpl", {
     aws_region        = var.aws_region
     project_name      = var.project_name
@@ -19,7 +21,12 @@ resource "aws_instance" "app" {
     # not by Terraform's templatefile).
     cw_agent_config_b64 = filebase64("${path.module}/files/amazon-cloudwatch-agent.json")
   })
-
+  lifecycle {
+    ignore_changes = [
+      ami,
+      user_data,
+    ]
+  }
   root_block_device {
     encrypted             = true
     volume_type           = "gp3"
