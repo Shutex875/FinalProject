@@ -335,6 +335,7 @@ jobs:
           export ECR_REPO_URL CLIENT_ECR_REPO_URL IMAGE_TAG
           envsubst < docker-compose.prod.yml > "$release_dir/docker-compose.prod.yml"
           cp deploy.sh "$release_dir/deploy.sh"
+          cp -R client "$release_dir/client"
           cp "$release_dir/docker-compose.prod.yml" "$release_dir/current/"
           cp deploy.sh "$release_dir/current/"
 
@@ -476,6 +477,7 @@ jobs:
         shell: bash
         env:
           INSTANCE_ID: ${{ steps.terraform-apply.outputs.instance_id }}
+          ECR_REPO_URL: ${{ steps.ecr.outputs.server_url }}
         run: |
           set -euo pipefail
           online=false
@@ -494,59 +496,12 @@ jobs:
           done
           [[ "$online" == true ]] || { echo "EC2 instance did not become available through SSM." >&2; exit 1; }
 
-          release_prefix="s3://${ARTIFACTS_BUCKET}/${PROJECT_NAME}/${ENVIRONMENT}/config/releases/${IMAGE_TAG}"
-          remote_command="set -eu
-          if ! command -v aws >/dev/null 2>&1; then
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y awscli
-          fi
-          install -d -m 0750 /opt/app
-          aws s3 cp '${release_prefix}/deploy.sh' /opt/app/deploy.sh --region '${AWS_REGION}'
-          chmod 750 /opt/app/deploy.sh
-          ARTIFACTS_BUCKET='${ARTIFACTS_BUCKET}' AWS_REGION='${AWS_REGION}' PROJECT_NAME='${PROJECT_NAME}' ENVIRONMENT='${ENVIRONMENT}' /opt/app/deploy.sh '${IMAGE_TAG}'"
-          parameters="$(jq -n --arg command "$remote_command" '{commands:[$command]}')"
-          command_id="$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name AWS-RunShellScript \
-            --parameters "$parameters" \
-            --timeout-seconds 600 \
-            --region "$AWS_REGION" \
-            --query 'Command.CommandId' \
-            --output text)"
-          echo "SSM command $command_id dispatched to $INSTANCE_ID"
-
-          deadline=$((SECONDS + 720))
-          until aws ssm wait command-executed \
-              --command-id "$command_id" \
-              --instance-id "$INSTANCE_ID" \
-              --region "$AWS_REGION"; do
-            status="$(aws ssm get-command-invocation \
-              --command-id "$command_id" \
-              --instance-id "$INSTANCE_ID" \
-              --region "$AWS_REGION" \
-              --query 'Status' \
-              --output text 2>/dev/null || true)"
-            case "$status" in
-              Failed|Cancelled|TimedOut|DeliveryTimedOut|ExecutionTimedOut)
-                aws ssm get-command-invocation \
-                  --command-id "$command_id" \
-                  --instance-id "$INSTANCE_ID" \
-                  --region "$AWS_REGION" \
-                  --query 'StandardErrorContent' \
-                  --output text >&2 || true
-                exit 1
-                ;;
-            esac
-            if (( SECONDS >= deadline )); then
-              echo "Timed out waiting for SSM deployment command $command_id (last status: $status)." >&2
-              exit 1
-            fi
-          done
-
-          aws ssm get-command-invocation \
-            --command-id "$command_id" \
-            --instance-id "$INSTANCE_ID" \
-            --region "$AWS_REGION" \
-            --query 'StandardOutputContent' \
-            --output text
+          release_dir="${RUNNER_TEMP}/release-${IMAGE_TAG}"
+          [[ -f "$release_dir/deploy.sh" && -f "$release_dir/docker-compose.prod.yml" && -f "$release_dir/.env" && -d "$release_dir/client" ]] || {
+            echo "Rendered deployment package is incomplete: $release_dir" >&2
+            exit 1
+          }
+          (
+            cd "$release_dir"
+            DEPLOY_METHOD=ssm SSM_INSTANCE_ID="$INSTANCE_ID" ECR_REPO_URL="$ECR_REPO_URL" bash ./deploy.sh
+          )
