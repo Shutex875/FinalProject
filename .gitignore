@@ -44,3 +44,4 @@ crash.log
 crash.*.log
 *.tfvars
 !*.tfvars.example
+.github/copilot-instructions.md
