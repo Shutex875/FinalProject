@@ -3,13 +3,20 @@ version: 1.0.0
 schema: v1
 
 models:
-  - name: qwen2.5-coder 7b
-    provider: ollama
-    model: qwen2.5-coder:7b
+  - name: Gemini 3.8 Flash
+    provider: gemini
+    model: gemini-3.8-flash
+    apiKey: AQ.Ab8RN6JA9q396sqIXvLi_-g6qPNVsV0znjeEMch9J0i-QBOxrw
     roles:
       - chat
       - edit
-      - apply
-      - autocomplete
 
-
+  - name: GPT-5.4 Pro
+    provider: openai
+    model: gpt-5.4-pro
+    apiKey: sk-svcacct-XXXXXX-XXXXXXX
+    defaultCompletionOptions:
+      maxTokens: 128000
+    roles:
+      - chat
+      - edit
