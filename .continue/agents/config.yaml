@@ -1,7 +1,6 @@
 name: Main Config
 version: 1.0.0
 schema: v1
-
 models:
   - name: Gemini 3.8 Flash
     provider: gemini
@@ -10,11 +9,10 @@ models:
     roles:
       - chat
       - edit
-
-  - name: GPT-5.4 Pro
+  - name: GPT-5
     provider: openai
-    model: gpt-5.4-pro
-    apiKey: sk-svcacct-XXXXXX-XXXXXXX
+    model: gpt-5
+    apiKey: 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
     defaultCompletionOptions:
       maxTokens: 128000
     roles:
