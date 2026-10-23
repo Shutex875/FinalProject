@@ -45,3 +45,10 @@ crash.*.log
 *.tfvars
 !*.tfvars.example
 .github/copilot-instructions.md
+
+# AI & Editor tools
+.continue/
+.cursor/
+
+# Temporary / PR drafts
+pr-body.md
