@@ -13,6 +13,7 @@ import { productsApi } from '../api';
 import { useTranslation } from 'react-i18next';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../AuthContext';
+import useInFlightLock from '../hooks/useInFlightLock';
 import QuantityInput from '../components/QuantityInput';
 import { getCommerceErrorMessage, isValidQuantity } from '../utils/commerce';
 import LikeButton from '../components/LikeButton';
@@ -30,7 +31,7 @@ export default function ProductPage() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
-  const [adding, setAdding] = useState(false);
+  const [adding, runAdd] = useInFlightLock();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -48,7 +49,7 @@ export default function ProductPage() {
     fetchProduct();
   }, [id, navigate, t]);
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = () => runAdd(async () => {
     if (!product || !isValidQuantity(quantity)) return;
     if (product.stock <= 0) {
       message.error(t('products.outOfStock') || 'Out of stock');
@@ -58,17 +59,14 @@ export default function ProductPage() {
       message.error(t('products.notEnoughStock', { stock: product.stock }) || `Only ${product.stock} items available`);
       return;
     }
-    setAdding(true);
     try {
       await addToCart(product, quantity);
       message.success(t('productPage.addedToCart', { title: product.name, quantity }));
     } catch (err) {
       const errorMsg = getCommerceErrorMessage(err, t, t('productPage.addError'));
       message.error(errorMsg);
-    } finally {
-      setAdding(false);
     }
-  };
+  });
 
   if (loading) {
     return (
@@ -155,7 +153,7 @@ export default function ProductPage() {
                     icon={<ShoppingCartOutlined />}
                     onClick={handleAddToCart}
                     loading={adding}
-                    disabled={isOutOfStock}
+                    disabled={isOutOfStock || adding}
                     style={{ height: '50px', padding: '0 40px', fontWeight: 'bold' }}
                   >
                     {isOutOfStock ? (t('productPage.outOfStock') || 'Out of stock') : (t('productPage.addToCartButton'))}
