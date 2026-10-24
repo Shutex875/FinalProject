@@ -1,10 +1,13 @@
-import React, { useEffect } from 'react';
-import { Table, Button, InputNumber, Typography, Space, Empty, Card, Row, Col, message, Popconfirm } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Typography, Space, Empty, Card, Row, Col, message, Popconfirm } from 'antd';
 import { DeleteOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext';
+
+import QuantityInput from '../components/QuantityInput';
+import { getCommerceErrorMessage } from '../utils/commerce';
 
 const { Title, Text } = Typography;
 
@@ -13,6 +16,18 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { token } = useAuth();
+  const [updating, setUpdating] = useState(false);
+
+  const handleQuantityChange = async (record, quantity) => {
+    setUpdating(true);
+    try {
+      await updateQuantity(record.id, quantity - record.quantity);
+    } catch (error) {
+      message.error(getCommerceErrorMessage(error, t, t('cart.updateError', { defaultValue: 'Не удалось обновить корзину' })));
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -46,11 +61,11 @@ export default function CartPage() {
       title: t('cart.quantity') || 'Quantity',
       key: 'quantity',
       render: (_, record) => (
-        <InputNumber
-          min={1}
-          max={99}
+        <QuantityInput
           value={record.quantity}
-          onChange={(value) => updateQuantity(record.id, value - record.quantity)}
+          label={t('cart.quantity')}
+          disabled={updating}
+          onChange={(value) => handleQuantityChange(record, value)}
         />
       ),
     },
@@ -117,7 +132,7 @@ export default function CartPage() {
                 <Text>{t('cart.subtotal') || 'Subtotal'}:</Text>
                 <Text strong>${cartTotal.toFixed(2)}</Text>
               </div>
-              <Button type="primary" size="large" block onClick={handleCheckout} icon={<ShoppingOutlined />}>
+              <Button type="primary" size="large" block onClick={handleCheckout} disabled={updating} icon={<ShoppingOutlined />}>
                 {t('cart.checkout') || 'Proceed to Checkout'}
               </Button>
               <Button onClick={() => navigate('/catalog')}>
