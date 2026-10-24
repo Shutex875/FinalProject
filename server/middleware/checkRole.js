@@ -1,4 +1,4 @@
-export default (allowedRoles) => {
+﻿export default (allowedRoles) => {
   if (!Array.isArray(allowedRoles)) {
     throw new Error('O parâmetro allowedRoles deve ser um array');
   }
@@ -16,9 +16,7 @@ export default (allowedRoles) => {
       const userRole = req.user.role || 'CUSTOMER';
       const hasRequiredRole = allowedRoles.includes(userRole);
 
-      const isSelfAction = req.params.userId && Number(req.params.userId) === Number(req.user.id);
-
-      if (!hasRequiredRole && !isSelfAction) {
+      if (!hasRequiredRole) {
         console.warn(`[Access Denied]: User ${req.user.email} (${userRole}) attempted to access ${req.originalUrl}`);
 
         return res.status(403).json({
