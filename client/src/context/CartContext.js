@@ -8,7 +8,7 @@ const CartContext = createContext();
 export const CartProvider = ({ children }) => {
     const { token, isAuthenticated } = useAuth();
     const [cartItems, setCartItems] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(Boolean(isAuthenticated && token));
 
     const loadCart = useCallback(async () => {
         if (!isAuthenticated || !token) {
@@ -51,6 +51,7 @@ export const CartProvider = ({ children }) => {
             setCartItems(updatedCart);
         } catch (err) {
             console.error(err);
+            throw err;
         }
     };
 

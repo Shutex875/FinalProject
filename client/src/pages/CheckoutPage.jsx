@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, Typography, message, Row, Col, Radio } from 
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../AuthContext';
 import { ordersApi } from '../api';
+import useInFlightLock from '../hooks/useInFlightLock';
 import { getCommerceErrorMessage } from '../utils/commerce';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -17,21 +18,21 @@ const PAYMENT_METHODS = {
 };
 
 export default function CheckoutPage() {
-  const { cartItems, cartTotal, loadCart } = useCart();
+  const { cartItems, cartTotal, loadCart, loading: cartLoading } = useCart();
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
+  const [loading, runCheckout] = useInFlightLock();
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS.CASH);
 
   useEffect(() => {
     if (!token) {
       navigate('/login', { state: { from: '/checkout' } });
-    } else if (!cartItems.length && !loading) {
+    } else if (!cartItems.length && !loading && !cartLoading) {
       navigate('/cart');
     }
-  }, [token, navigate, cartItems.length, loading]);
+  }, [token, navigate, cartItems.length, loading, cartLoading]);
 
   if (!token) {
     return null;
@@ -42,8 +43,8 @@ export default function CheckoutPage() {
   const deliveryCost = cartTotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_COST : 0;
   const finalTotal = cartTotal + deliveryCost;
 
-  const onFinish = async (values) => {
-    if (loading) return;
+  const onFinish = (values) => runCheckout(async () => {
+    if (cartLoading) return;
     const paymentText = paymentMethod === PAYMENT_METHODS.CASH
       ? t('checkout.paymentCash')
       : t('checkout.paymentCard');
@@ -57,7 +58,6 @@ export default function CheckoutPage() {
       comment: fullComment,
     };
 
-    setLoading(true);
     try {
       await ordersApi.create(orderData);
       message.success(t('checkout.orderPlaced', { payment: paymentText }));
@@ -66,10 +66,8 @@ export default function CheckoutPage() {
       await loadCart();
     } catch (err) {
       message.error(getCommerceErrorMessage(err, t, t('checkout.error')));
-    } finally {
-      setLoading(false);
     }
-  };
+  });
 
   // Валидация имени
   const validateName = (_, value) => {
@@ -171,7 +169,7 @@ export default function CheckoutPage() {
                 </Radio.Group>
               </Form.Item>
               <Form.Item>
-                <Button type="primary" htmlType="submit" size="large" block loading={loading}>
+                <Button type="primary" htmlType="submit" size="large" block loading={loading} disabled={loading || cartLoading}>
                   {t('checkout.placeOrder') || 'Заказать'}
                 </Button>
               </Form.Item>

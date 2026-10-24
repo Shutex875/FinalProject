@@ -1,33 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Typography, Space, Empty, Card, Row, Col, message, Popconfirm } from 'antd';
+import React, { useEffect } from 'react';
+import { Table, Button, Typography, Space, Empty, Card, Row, Col, message, Popconfirm, Spin } from 'antd';
 import { DeleteOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext';
 
+import useInFlightLock from '../hooks/useInFlightLock';
 import QuantityInput from '../components/QuantityInput';
 import { getCommerceErrorMessage } from '../utils/commerce';
 
 const { Title, Text } = Typography;
 
 export default function CartPage() {
-  const { cartItems, removeFromCart, updateQuantity, cartTotal } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, cartTotal, cartCount, loading } = useCart();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { token } = useAuth();
-  const [updating, setUpdating] = useState(false);
+  const [updating, runMutation] = useInFlightLock();
+  const busy = updating || loading;
 
-  const handleQuantityChange = async (record, quantity) => {
-    setUpdating(true);
+  const handleQuantityChange = (record, quantity) => runMutation(async () => {
     try {
       await updateQuantity(record.id, quantity - record.quantity);
     } catch (error) {
       message.error(getCommerceErrorMessage(error, t, t('cart.updateError', { defaultValue: 'Не удалось обновить корзину' })));
-    } finally {
-      setUpdating(false);
     }
-  };
+  });
+
+  const handleRemove = (productId) => runMutation(async () => {
+    try {
+      await removeFromCart(productId);
+    } catch (error) {
+      message.error(getCommerceErrorMessage(error, t, t('cart.updateError', { defaultValue: 'Не удалось обновить корзину' })));
+    }
+  });
 
   useEffect(() => {
     if (!token) {
@@ -64,7 +71,7 @@ export default function CartPage() {
         <QuantityInput
           value={record.quantity}
           label={t('cart.quantity')}
-          disabled={updating}
+          disabled={busy}
           onChange={(value) => handleQuantityChange(record, value)}
         />
       ),
@@ -80,23 +87,30 @@ export default function CartPage() {
       render: (_, record) => (
         <Popconfirm
           title={t('cart.removeConfirm') || 'Remove this item?'}
-          onConfirm={() => removeFromCart(record.id)}
+          onConfirm={() => handleRemove(record.id)}
+          disabled={busy}
+          okButtonProps={{ disabled: busy, loading: updating }}
           okText={t('common.yes') || 'Yes'}
           cancelText={t('common.no') || 'No'}
         >
-          <Button type="text" danger icon={<DeleteOutlined />} />
+          <Button type="text" danger disabled={busy} icon={<DeleteOutlined />} />
         </Popconfirm>
       ),
     },
   ];
 
   const handleCheckout = () => {
+    if (busy) return;
     if (cartItems.length === 0) {
       message.warning(t('cart.emptyWarning') || 'Your cart is empty');
       return;
     }
     navigate('/checkout');
   };
+
+  if (loading && cartItems.length === 0) {
+    return <div style={{ padding: 50, textAlign: 'center' }}><Spin size="large" /></div>;
+  }
 
   if (cartItems.length === 0) {
     return (
@@ -119,6 +133,7 @@ export default function CartPage() {
             dataSource={cartItems}
             rowKey="id"
             pagination={false}
+            loading={busy}
           />
         </Col>
         <Col xs={24} lg={8}>
@@ -126,13 +141,13 @@ export default function CartPage() {
             <Space direction="vertical" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text>{t('cart.totalItems') || 'Total items'}:</Text>
-                <Text strong>{cartItems.reduce((sum, i) => sum + i.quantity, 0)}</Text>
+                <Text strong>{cartCount}</Text>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text>{t('cart.subtotal') || 'Subtotal'}:</Text>
                 <Text strong>${cartTotal.toFixed(2)}</Text>
               </div>
-              <Button type="primary" size="large" block onClick={handleCheckout} disabled={updating} icon={<ShoppingOutlined />}>
+              <Button type="primary" size="large" block onClick={handleCheckout} disabled={busy} icon={<ShoppingOutlined />}>
                 {t('cart.checkout') || 'Proceed to Checkout'}
               </Button>
               <Button onClick={() => navigate('/catalog')}>
