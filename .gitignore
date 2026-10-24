@@ -52,3 +52,36 @@ crash.*.log
 
 # Temporary / PR drafts
 pr-body.md
+
+# AI & Editor tools
+.continue/
+.cursor/
+
+# Temporary files
+pr-body.md
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Databases & SQLite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+server/prisma/dev.db
