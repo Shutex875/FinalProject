@@ -16,7 +16,7 @@
     "prisma",
     "postgresql",
     "skateboard-shop"
-  ],
+  ], 
   "author": "",
   "license": "ISC",
   "dependencies": {
