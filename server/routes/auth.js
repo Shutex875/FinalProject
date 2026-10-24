@@ -6,6 +6,8 @@
  */
 
 import express from 'express';
+import { randomUUID } from 'node:crypto';
+import { commerceTransaction, deactivateUser, CommerceError } from '../services/commerce.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { body } from 'express-validator';
@@ -227,7 +229,7 @@ router.post('/login',
       const { password } = req.body;
 
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
         return res.status(400).json({ error: 'Email ou senha inválidos' });
       }
 
@@ -364,7 +366,8 @@ router.put('/profile',
 router.delete('/profile', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    await prisma.user.delete({ where: { id: userId } });
+    await commerceTransaction(prisma, userId, tx =>
+      deactivateUser(tx, userId, `deleted-${randomUUID()}@deleted.invalid`));
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -372,6 +375,7 @@ router.delete('/profile', authMiddleware, async (req, res) => {
     });
     res.json({ message: 'Sua conta foi excluída com sucesso' });
   } catch (err) {
+    if (err instanceof CommerceError) return res.status(err.status).json({ error: err.message });
     console.error('Erro ao excluir perfil:', err);
     res.status(500).json({ error: 'Erro ao excluir conta' });
   }

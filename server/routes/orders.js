@@ -8,9 +8,8 @@
 import express from 'express';
 import prisma from '../prismaClient.js';
 import authenticate from '../middleware/auth.js';
+import { checkout, commerceTransaction, CommerceError } from '../services/commerce.js';
 import {
-  itemsRule,
-  totalRule,
   addressRule,
   phoneRule,
   commentRule,
@@ -23,7 +22,7 @@ const router = express.Router();
  * @swagger
  * /orders:
  *   post:
- *     summary: Create a new order
+ *     summary: Create an order from the user cart (request items and total are ignored)
  *     tags: [Orders]
  *     security:
  *       - bearerAuth: []
@@ -33,7 +32,7 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [items, total, address, phone]
+ *             required: [address, phone]
  *             properties:
  *               items:
  *                 type: array
@@ -57,54 +56,19 @@ const router = express.Router();
  */
 router.post('/',
   authenticate,
-  itemsRule(),
-  totalRule(),
   addressRule(),
   phoneRule(),
   commentRule(),
   handleValidationErrors,
   async (req, res) => {
     try {
-      const { items, total, address, phone, comment } = req.body;
-
-      // Проверка, что все товары есть в корзине (можно опционально)
-      const cartItems = await prisma.cartItem.findMany({
-        where: { userId: req.user.id }
-      });
-      if (cartItems.length === 0) {
-        return res.status(400).json({ error: 'Cart is empty' });
-      }
-
-      // Создаём заказ в транзакции (списание stock уже произошло при добавлении в корзину)
-      const newOrder = await prisma.$transaction(async (tx) => {
-        const order = await tx.order.create({
-          data: {
-            userId: req.user.id,
-            total: total,
-            status: 'PENDING',
-            address: address,
-            phone: phone,
-            comment: comment || null,
-            items: {
-              create: items.map(item => ({
-                productId: Number(item.productId),
-                quantity: Number(item.quantity),
-                price: item.price
-              }))
-            }
-          },
-          include: { items: true }
-        });
-
-        // Очищаем корзину пользователя (товары уже учтены на складе)
-        await tx.cartItem.deleteMany({ where: { userId: req.user.id } });
-
-        // НЕ обновляем stock, потому что он уже уменьшен при добавлении в корзину
-        return order;
-      });
+      const { address, phone, comment } = req.body;
+      const newOrder = await commerceTransaction(prisma, req.user.id,
+        tx => checkout(tx, req.user.id, { address, phone, comment }));
 
       res.status(201).json(newOrder);
     } catch (error) {
+      if (error instanceof CommerceError) return res.status(error.status).json({ error: error.message });
       console.error('🔥 Erro ao criar pedido:', error);
       res.status(500).json({ error: 'Não foi possível finalizar o pedido' });
     }

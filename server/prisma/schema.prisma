@@ -61,7 +61,7 @@ model Category {
 model Order {
   id        Int         @id @default(autoincrement())
   userId    Int
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   total     Decimal
   status    String      @default("PENDING")
   address   String
