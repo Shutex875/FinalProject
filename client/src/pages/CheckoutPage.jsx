@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, Typography, message, Row, Col, Radio } from 
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../AuthContext';
 import { ordersApi } from '../api';
+import { getCommerceErrorMessage } from '../utils/commerce';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -16,7 +17,7 @@ const PAYMENT_METHODS = {
 };
 
 export default function CheckoutPage() {
-  const { cartItems, cartTotal, clearCart } = useCart();
+  const { cartItems, cartTotal, loadCart } = useCart();
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -27,22 +28,22 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!token) {
       navigate('/login', { state: { from: '/checkout' } });
+    } else if (!cartItems.length && !loading) {
+      navigate('/cart');
     }
-  }, [token, navigate]);
+  }, [token, navigate, cartItems.length, loading]);
 
   if (!token) {
     return null;
   }
 
-  if (cartItems.length === 0) {
-    navigate('/cart');
-    return null;
-  }
+  if (cartItems.length === 0) return null;
 
   const deliveryCost = cartTotal < FREE_DELIVERY_THRESHOLD ? DELIVERY_COST : 0;
   const finalTotal = cartTotal + deliveryCost;
 
   const onFinish = async (values) => {
+    if (loading) return;
     const paymentText = paymentMethod === PAYMENT_METHODS.CASH
       ? t('checkout.paymentCash')
       : t('checkout.paymentCard');
@@ -51,12 +52,6 @@ export default function CheckoutPage() {
       : `${t('checkout.paymentMethodLabel')}: ${paymentText}`;
 
     const orderData = {
-      items: cartItems.map(item => ({
-        productId: item.id,
-        quantity: item.quantity,
-        price: item.price,
-      })),
-      total: finalTotal,
       address: values.address,
       phone: values.phone,
       comment: fullComment,
@@ -66,10 +61,11 @@ export default function CheckoutPage() {
     try {
       await ordersApi.create(orderData);
       message.success(t('checkout.orderPlaced', { payment: paymentText }));
-      clearCart();
       navigate('/orders');
+      // Checkout already clears the server cart atomically; only refresh local state.
+      await loadCart();
     } catch (err) {
-      message.error(err.message || t('checkout.error') || 'Failed to place order');
+      message.error(getCommerceErrorMessage(err, t, t('checkout.error')));
     } finally {
       setLoading(false);
     }
@@ -190,6 +186,7 @@ export default function CheckoutPage() {
                 <Text>${(Number(item.price) * item.quantity).toFixed(2)}</Text>
               </div>
             ))}
+            <Text type="secondary">{t('checkout.estimatedTotal', { defaultValue: 'Предварительная сумма. Окончательная стоимость рассчитывается при оформлении заказа.' })}</Text>
             <hr />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
               <Text>{t('checkout.subtotal') || 'Подитог'}:</Text>

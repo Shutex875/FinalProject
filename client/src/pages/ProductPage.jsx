@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Row, Col, Typography, Button, Tag, InputNumber,
+  Row, Col, Typography, Button, Tag,
   Divider, Space, Skeleton, message, Breadcrumb, Card
 } from 'antd';
 import {
@@ -13,6 +13,8 @@ import { productsApi } from '../api';
 import { useTranslation } from 'react-i18next';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../AuthContext';
+import QuantityInput from '../components/QuantityInput';
+import { getCommerceErrorMessage, isValidQuantity } from '../utils/commerce';
 import LikeButton from '../components/LikeButton';
 import CommentsSection from '../components/CommentsSection';
 import './css/TemplatePage.css';
@@ -47,7 +49,7 @@ export default function ProductPage() {
   }, [id, navigate, t]);
 
   const handleAddToCart = async () => {
-    if (!product) return;
+    if (!product || !isValidQuantity(quantity)) return;
     if (product.stock <= 0) {
       message.error(t('products.outOfStock') || 'Out of stock');
       return;
@@ -60,12 +62,8 @@ export default function ProductPage() {
     try {
       await addToCart(product, quantity);
       message.success(t('productPage.addedToCart', { title: product.name, quantity }));
-      setProduct(prev => ({
-        ...prev,
-        stock: prev.stock - quantity
-      }));
     } catch (err) {
-      const errorMsg = err.response?.data?.error || t('productPage.addError') || 'Failed to add to cart';
+      const errorMsg = getCommerceErrorMessage(err, t, t('productPage.addError'));
       message.error(errorMsg);
     } finally {
       setAdding(false);
@@ -141,13 +139,13 @@ export default function ProductPage() {
               <Space size="large" align="center">
                 <div>
                   <Text strong style={{ display: 'block', marginBottom: 5 }}>{t('productPage.quantityLabel')}</Text>
-                  <InputNumber
-                    min={1}
-                    max={isOutOfStock ? 0 : product.stock}
+                  <QuantityInput
+                    max={product.stock}
+                    label={t('productPage.quantityLabel')}
                     value={quantity}
                     onChange={setQuantity}
                     size="large"
-                    disabled={isOutOfStock}
+                    disabled={isOutOfStock || adding}
                   />
                 </div>
                 {token && (

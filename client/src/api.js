@@ -72,8 +72,13 @@ instance.interceptors.response.use(
             }
         }
 
-        const message = error.response?.data?.message || error.response?.data?.error || 'Server Error';
-        return Promise.reject(new Error(message));
+        const data = error.response?.data;
+        const validationMessage = Array.isArray(data?.errors)
+            ? data.errors.map(item => item.msg).filter(Boolean).join('; ')
+            : '';
+        error.message = data?.message || data?.error || validationMessage || error.message || 'Server Error';
+        error.status = error.response?.status;
+        return Promise.reject(error);
     }
 );
 
@@ -104,7 +109,8 @@ export const tagsApi = {
 };
 
 export const ordersApi = {
-    create: (orderData) => instance.post('/orders', orderData),
+    // The server checks out the stored cart and calculates all prices and totals.
+    create: ({ address, phone, comment }) => instance.post('/orders', { address, phone, comment }),
     getMyOrders: () => instance.get('/orders/my'),
 };
 
