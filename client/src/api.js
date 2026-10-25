@@ -1,21 +1,8 @@
 import axios from 'axios';
+import { getAccessToken, setAccessToken, getSessionVersion, invalidateSession } from './authSession';
+export { getAccessToken, setAccessToken } from './authSession';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
-
-let isRefreshing = false;
-let failedQueue = [];
-let accessToken = null;
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
 
 const instance = axios.create({
     baseURL: API_BASE_URL,
@@ -26,6 +13,8 @@ const instance = axios.create({
 });
 
 instance.interceptors.request.use((config) => {
+    config._sessionVersion = getSessionVersion();
+    const accessToken = getAccessToken();
     if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
     }
@@ -33,66 +22,32 @@ instance.interceptors.request.use((config) => {
 });
 
 instance.interceptors.response.use(
-    (response) => response.data,
-    async (error) => {
-        const originalRequest = error.config;
-        const requestUrl = originalRequest?.url || '';
-        const isAuthEndpoint = /\/auth\/(login|register|refresh)(?:[/?]|$)/.test(requestUrl);
-
-        if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
-            if (isRefreshing) {
-                return new Promise((resolve, reject) => {
-                    failedQueue.push({ resolve, reject });
-                }).then(token => {
-                    originalRequest.headers.Authorization = `Bearer ${token}`;
-                    return instance(originalRequest);
-                }).catch(err => Promise.reject(err));
-            }
-
-            originalRequest._retry = true;
-            isRefreshing = true;
-
-            try {
-                const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
-                const newToken = response.data.token;
-                accessToken = newToken;
-                processQueue(null, newToken);
-                originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                return instance(originalRequest);
-            } catch (refreshError) {
-                processQueue(refreshError, null);
-                accessToken = null;
-                localStorage.removeItem('accessToken');
-                if (!['/login', '/register'].includes(window.location.pathname)) {
-                    window.location.replace('/login');
-                }
-                return Promise.reject(refreshError);
-            } finally {
-                isRefreshing = false;
-            }
+    (response) => {
+        if (response.config?._sessionVersion !== undefined && response.config._sessionVersion !== getSessionVersion()) {
+            return Promise.reject(new Error('Session changed'));
         }
-
+        return response.data;
+    },
+    async (error) => {
         const data = error.response?.data;
         const validationMessage = Array.isArray(data?.errors)
             ? data.errors.map(item => item.msg).filter(Boolean).join('; ')
             : '';
         error.message = data?.message || data?.error || validationMessage || error.message || 'Server Error';
         error.status = error.response?.status;
+        const stale = error.config?._sessionVersion !== undefined && error.config._sessionVersion !== getSessionVersion();
+        const blockedAccount = error.status === 403 && /conta.*(bloquead|indispon)|blocked.*account|account.*blocked/i.test(error.message);
+        if (!stale && (error.status === 401 || blockedAccount)) invalidateSession();
         return Promise.reject(error);
     }
 );
-
-export const setAccessToken = (token) => {
-    accessToken = token;
-};
-
-export const getAccessToken = () => accessToken;
 
 export const authApi = {
     login: (credentials) => instance.post('/auth/login', credentials),
     register: (userData) => instance.post('/auth/register', userData),
     getProfile: () => instance.get('/auth/profile'),
-    logout: () => instance.post('/auth/logout'),
+    logout: (token) => instance.post('/auth/logout', {}, { headers: { Authorization: `Bearer ${token}` } }),
+    deactivateProfile: () => instance.delete('/auth/profile'),
     refresh: () => instance.post('/auth/refresh'),
     updateProfile: (data) => instance.put('/auth/profile', data),
 };

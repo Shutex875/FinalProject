@@ -1,10 +1,13 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import { jwtDecode } from 'jwt-decode';
-import { authApi, setAccessToken } from './api';
+import { authApi, setAccessToken, getAccessToken } from './api';
+import { AUTH_SESSION_INVALIDATED, canRestoreSession, getSessionVersion, invalidateSession } from './authSession';
+import { useNavigate } from 'react-router-dom';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+    const navigate = useNavigate();
     // 1. Инициализируем токен из localStorage при старте и СРАЗУ прокидываем в api.js
     const [token, setTokenState] = useState(() => {
         const savedToken = localStorage.getItem('accessToken');
@@ -65,16 +68,32 @@ export const AuthProvider = ({ children }) => {
         return handleAuthSuccess(response);
     };
 
-    const logout = useCallback(async () => {
+    useEffect(() => {
+        const clearSession = () => {
+            setTokenState(null);
+            setUser(null);
+            navigate('/login', { replace: true });
+        };
+        window.addEventListener(AUTH_SESSION_INVALIDATED, clearSession);
+        return () => window.removeEventListener(AUTH_SESSION_INVALIDATED, clearSession);
+    }, [navigate]);
+
+    const logout = useCallback(async ({ localOnly = false } = {}) => {
+        const previousToken = getAccessToken();
+        invalidateSession();
+        if (localOnly || !previousToken) return;
         try {
-            await authApi.logout();
+            await authApi.logout(previousToken);
         } catch (e) {
             console.error('Logout error:', e);
         }
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem('accessToken');
-    }, [setToken]);
+    }, []);
+
+    const deactivateAccount = async () => {
+        await authApi.deactivateProfile();
+        // DELETE /auth/profile already revokes credentials and clears the cookie.
+        await logout({ localOnly: true });
+    };
 
     const updateUser = useCallback(async (newUserData) => {
         setUser(prev => ({ ...prev, ...newUserData }));
@@ -82,22 +101,16 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        const backgroundRefresh = async () => {
-            try {
-                const response = await authApi.refresh();
-                if (response?.token) {
-                    setToken(response.token);
-                    setUser(jwtDecode(response.token));
-                }
-            } catch (refreshError) {
-                console.log('Background refresh skipped or failed');
+        if (getAccessToken() || !canRestoreSession()) return;
+        let active = true;
+        const version = getSessionVersion();
+        authApi.refresh().then(response => {
+            if (active && version === getSessionVersion() && response?.token) {
+                handleAuthSuccess(response);
             }
-        };
-
-        if (!token) {
-            backgroundRefresh();
-        }
-    }, [token, setToken]);
+        }).catch(() => {});
+        return () => { active = false; };
+    }, [handleAuthSuccess]);
 
     const value = {
         token,
@@ -105,6 +118,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
+        deactivateAccount,
         updateUser,
         isAuthenticated: !!token,
         isAdmin: user?.role === 'ADMIN'
