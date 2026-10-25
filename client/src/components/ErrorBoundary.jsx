@@ -8,12 +8,11 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    console.log('getDerivedStateFromError:', error);
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.log('componentDidCatch:', error, errorInfo);
+    console.error('Unhandled rendering error:', error, errorInfo);
     this.setState({ errorInfo });
   }
 
@@ -27,7 +26,6 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      console.log('Rendering error fallback');
       return (
         <div style={{ padding: '50px', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Result
