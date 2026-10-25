@@ -143,6 +143,15 @@ jobs:
       group: production-release
       cancel-in-progress: false
     env:
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-3' }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+      ENVIRONMENT: ${{ vars.ENVIRONMENT || 'development' }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'terraform.tfstate' }}
+      TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
+      ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_attempt }}
       DEPLOY_HOST: 51.44.211.29
       DEPLOY_USER: ubuntu
       DEPLOY_DIR: /home/ubuntu/FinalProject
