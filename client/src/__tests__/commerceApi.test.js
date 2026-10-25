@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { ordersApi } from '../api';
+import { authApi, ordersApi } from '../api';
 import { getCommerceErrorMessage, isValidQuantity } from '../utils/commerce';
 
 jest.mock('axios', () => ({
   create: jest.fn(() => ({
     interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
     post: jest.fn(),
+    delete: jest.fn(),
   })),
 }));
 
@@ -44,4 +45,46 @@ test.each([0, -1, 100, 1.5, '1', null, undefined, NaN, true])('rejects non-contr
 test('accepts both quantity boundaries', () => {
   expect(isValidQuantity(1)).toBe(true);
   expect(isValidQuantity(99)).toBe(true);
+});
+
+const session = require('../authSession');
+
+test.each([
+  [401, 'Token expired'],
+  [403, 'Conta bloqueada'],
+  [403, 'Sua conta está bloqueada'],
+  [403, 'Conta indisponível'],
+  [403, 'Blocked account'],
+])('invalidates a session on %s %s', async (status, message) => {
+  session.setAccessToken('active-token');
+  localStorage.setItem('accessToken', 'active-token');
+  const listener = jest.fn();
+  window.addEventListener(session.AUTH_SESSION_INVALIDATED, listener);
+  try {
+    await expect(rejectResponse({ response: { status, data: { error: message } } })).rejects.toMatchObject({ status });
+    expect(session.getAccessToken()).toBeNull();
+    expect(localStorage.getItem('accessToken')).toBeNull();
+    expect(session.canRestoreSession()).toBe(false);
+    expect(listener).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener(session.AUTH_SESSION_INVALIDATED, listener);
+  }
+});
+
+test('role-based 403 does not log the user out', async () => {
+  session.setAccessToken('valid-token');
+  await expect(rejectResponse({ response: { status: 403, data: { error: 'Permissões insuficientes' } } })).rejects.toMatchObject({ status: 403 });
+  expect(session.getAccessToken()).toBe('valid-token');
+});
+
+test('an old session error cannot log out a newly signed-in user', async () => {
+  const version = session.getSessionVersion();
+  session.setAccessToken('new-token');
+  await expect(rejectResponse({ config: { _sessionVersion: version }, response: { status: 401 } })).rejects.toMatchObject({ status: 401 });
+  expect(session.getAccessToken()).toBe('new-token');
+});
+
+test('deactivation uses the authenticated profile endpoint', () => {
+  authApi.deactivateProfile();
+  expect(instance.delete).toHaveBeenCalledWith('/auth/profile');
 });

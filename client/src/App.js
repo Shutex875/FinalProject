@@ -55,9 +55,6 @@ function App() {
 
   const handleLogout = async () => {
     await logout();
-    setTimeout(() => {
-      window.location.reload();
-    }, 100);
   };
 
   return (

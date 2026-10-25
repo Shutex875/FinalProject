@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Tabs, Card, Tag, Space, Button, Typography, Empty, message,
-  Avatar, Row, Col, Modal, Form, Input
+  Avatar, Row, Col, Modal, Form, Input, Popconfirm
 } from 'antd';
 import {
   UserOutlined, ShoppingOutlined, EditOutlined
@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { authApi, likesApi } from '../api';
 import { useTranslation } from 'react-i18next';
+import useInFlightLock from '../hooks/useInFlightLock';
 import TemplateCard from '../components/TemplateCard';
 import './css/UserPage.css';
 
@@ -17,7 +18,8 @@ const { Title, Text } = Typography;
 
 export default function UserPage() {
   const { t } = useTranslation();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, deactivateAccount } = useAuth();
+  const [deactivating, runDeactivation] = useInFlightLock();
   const navigate = useNavigate();
   const [form] = Form.useForm();
 
@@ -42,6 +44,16 @@ export default function UserPage() {
     };
     fetchLikedProducts();
   }, [user, t]);
+
+  const handleDeactivate = () => runDeactivation(async () => {
+    try {
+      await deactivateAccount();
+      message.success(t('user.deactivated', { defaultValue: 'Аккаунт деактивирован. Доступ закрыт, история заказов сохранена.' }));
+      navigate('/login', { replace: true });
+    } catch (error) {
+      message.error(error.message || t('user.deactivateError', { defaultValue: 'Не удалось деактивировать аккаунт' }));
+    }
+  });
 
   const getRoleTranslation = (role) => {
     switch (role) {
@@ -136,11 +148,28 @@ export default function UserPage() {
               type="primary"
               icon={<EditOutlined />}
               onClick={showEditModal}
+              disabled={deactivating}
             >
               {t('user.editProfile')}
             </Button>
           </Col>
         </Row>
+      </Card>
+
+      <Card style={{ marginBottom: 24 }}>
+        <Popconfirm
+          title={t('user.deactivateTitle', { defaultValue: 'Деактивировать аккаунт?' })}
+          description={t('user.deactivateWarning', { defaultValue: 'Деактивация необратима. Доступ к аккаунту будет закрыт, а история заказов сохранена.' })}
+          onConfirm={handleDeactivate}
+          disabled={deactivating || submitting}
+          okText={t('user.deactivate', { defaultValue: 'Деактивировать аккаунт' })}
+          cancelText={t('common.cancel')}
+          okButtonProps={{ danger: true, loading: deactivating, disabled: deactivating }}
+        >
+          <Button danger loading={deactivating} disabled={deactivating || submitting}>
+            {t('user.deactivate', { defaultValue: 'Деактивировать аккаунт' })}
+          </Button>
+        </Popconfirm>
       </Card>
 
       <Tabs defaultActiveKey="1" items={tabItems} size="large" />
