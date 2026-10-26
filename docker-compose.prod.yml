@@ -26,12 +26,12 @@ services:
     image: "${CLIENT_ECR_REPO_URL}:${IMAGE_TAG}"
     depends_on:
       server:
+        condition: service_started
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-        condition: service_started
     ports:
       - "80:80"
     restart: unless-stopped
