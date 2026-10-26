@@ -132,3 +132,17 @@ variable "cloudwatch_log_retention_days" {
   }
 }
 
+
+variable "telegram_bot_token" {
+  description = "Telegram bot token; stored in Terraform state and Lambda environment."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
+
+variable "telegram_chat_id" {
+  description = "Telegram destination chat ID."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}

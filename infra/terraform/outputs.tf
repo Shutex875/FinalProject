@@ -52,3 +52,7 @@ output "artifacts_bucket_name" {
   description = "Name of the versioned artifacts S3 bucket."
   value       = aws_s3_bucket.artifacts.id
 }
+
+output "cpu_alarm_name" {
+  value = aws_cloudwatch_metric_alarm.app_instance_high_cpu.alarm_name
+}

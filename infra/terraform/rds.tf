@@ -31,3 +31,4 @@ resource "aws_db_instance" "postgres" {
 
   tags = { Name = "${local.name_prefix}-postgres" }
 }
+ 

@@ -1,7 +1,7 @@
 {
   "agent": {
     "metrics_collection_interval": 60,
-    "run_as_user": "cwagent",
+    "run_as_user": "root",
     "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log"
   },
   "metrics": {
@@ -68,12 +68,9 @@
             "retention_in_days": 14
           },
           {
-            "file_path": "/opt/app/logs/*.log",
+            "file_path": "/opt/app/logs/server.log",
             "log_group_name": "/aws/ec2/deck-market",
-            "log_stream_name": "{instance_id}/app",
-            "timestamp_format": "%Y-%m-%d %H:%M:%S",
-            "retention_in_days": 14,
-            "multi_line_start_pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
+            "log_stream_name": "{instance_id}/server"
           },
           {
             "file_path": "/var/log/syslog",

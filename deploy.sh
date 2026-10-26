@@ -111,6 +111,7 @@ trap cleanup EXIT
 mkdir -p "$WORK_DIR/package"
 cp docker-compose.prod.yml "$WORK_DIR/package/"
 cp "$ENV_FILE" "$WORK_DIR/package/.env"
+cp "$(dirname "$0")/scripts/ensure-docker.sh" "$WORK_DIR/package/ensure-docker.sh"
 mkdir -p "$WORK_DIR/package/client"
 tar -czf "$WORK_DIR/client.tar.gz" --exclude=node_modules --exclude=build --exclude=.git -C . client
 tar -xzf "$WORK_DIR/client.tar.gz" -C "$WORK_DIR/package"
@@ -128,6 +129,12 @@ set -Eeuo pipefail
 
 export COMPOSE_PROJECT_NAME
 cd "$APP_DIR"
+if (( EUID == 0 )) && command -v cloud-init >/dev/null 2>&1; then
+  if ! timeout 300 cloud-init status --wait; then
+    printf 'cloud-init did not finish cleanly; checking Docker independently.\n' >&2
+  fi
+fi
+bash ./ensure-docker.sh
 export ECR_REPO_URL IMAGE_TAG
 docker compose --env-file .env -f docker-compose.prod.yml config --quiet
 

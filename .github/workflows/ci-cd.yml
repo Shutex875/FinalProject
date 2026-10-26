@@ -26,6 +26,9 @@ jobs:
           terraform_version: 1.10.5
           terraform_wrapper: false
 
+      - name: Check deployment shell syntax
+        run: bash -n deploy.sh scripts/ensure-docker.sh infra/terraform/templates/user-data.sh.tpl
+
       - name: Check Terraform formatting
         run: terraform fmt -check -recursive infra/terraform
 
@@ -147,12 +150,12 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-3' }}
       PROJECT_NAME: ${{ vars.PROJECT_NAME }}
       ENVIRONMENT: ${{ vars.ENVIRONMENT }}
-      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET || secrets.TF_STATE_BUCKET }}
-      TF_STATE_KEY: ${{ vars.TF_STATE_KEY || 'terraform.tfstate' }}
-      TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE || secrets.TF_LOCK_TABLE }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+      TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
       ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
       IMAGE_TAG: ${{ github.sha }}-${{ github.run_attempt }}
-      DEPLOY_HOST: 51.44.211.29
+      DEPLOY_HOST: 52.47.91.47
       DEPLOY_USER: ubuntu
       DEPLOY_DIR: /home/ubuntu/FinalProject
       DEPLOY_BRANCH: ${{ github.ref_name }}
@@ -341,6 +344,8 @@ jobs:
           export ECR_REPO_URL CLIENT_ECR_REPO_URL IMAGE_TAG
           envsubst < docker-compose.prod.yml > "$release_dir/docker-compose.prod.yml"
           cp deploy.sh "$release_dir/deploy.sh"
+          mkdir -p "$release_dir/scripts"
+          cp scripts/ensure-docker.sh "$release_dir/scripts/ensure-docker.sh"
           cp -R client "$release_dir/client"
           cp "$release_dir/docker-compose.prod.yml" "$release_dir/current/"
           cp deploy.sh "$release_dir/current/"

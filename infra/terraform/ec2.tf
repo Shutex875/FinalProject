@@ -6,6 +6,7 @@ resource "aws_instance" "app" {
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.ec2.id]
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
+  monitoring                  = true
 
   user_data_replace_on_change = false
 
@@ -19,7 +20,9 @@ resource "aws_instance" "app" {
     # Base64-encode the static CloudWatch Agent config so its ${aws:...}
     # placeholders are passed through verbatim (they are resolved by the agent,
     # not by Terraform's templatefile).
-    cw_agent_config_b64 = filebase64("${path.module}/files/amazon-cloudwatch-agent.json")
+    cw_agent_config_b64  = filebase64("${path.module}/files/amazon-cloudwatch-agent.json")
+    docker_bootstrap_b64 = filebase64("${path.module}/../../scripts/ensure-docker.sh")
+    cw_bootstrap_b64     = filebase64("${path.module}/../../scripts/configure-cloudwatch.sh")
   })
   lifecycle {
     ignore_changes = [
