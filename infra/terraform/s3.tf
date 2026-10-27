@@ -29,7 +29,10 @@ resource "aws_s3_bucket" "images" {
   force_destroy = true
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-images"
+    Name        = "${var.project_name}-${var.environment}-images"
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -61,10 +64,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "images" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      sse_algorithm = "AES256"
     }
-    bucket_key_enabled = true
   }
 }
 
@@ -84,7 +85,10 @@ resource "aws_s3_bucket" "images_logs" {
   force_destroy = true
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-images-logs"
+    Name        = "${var.project_name}-${var.environment}-images-logs"
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -110,10 +114,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "images_logs" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      sse_algorithm = "AES256"
     }
-    bucket_key_enabled = true
   }
 }
 
