@@ -113,9 +113,10 @@ data "aws_route53_zone" "primary" {
 }
 
 resource "aws_route53_record" "app" {
-  zone_id = data.aws_route53_zone.primary.zone_id
-  name    = "deskshop.vouk.dev"
-  type    = "A"
+  zone_id         = data.aws_route53_zone.primary.zone_id
+  name            = "deskshop.vouk.dev"
+  type            = "A"
+  allow_overwrite = true
 
   alias {
     name                   = aws_lb.main.dns_name

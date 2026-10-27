@@ -1,6 +1,6 @@
 resource "aws_security_group" "ec2" {
   name        = "${local.name_prefix}-ec2-sg"
-  description = "Application host accessible only via ALB and trusted SSH."
+  description = "Public web ingress and limited outbound for the application host."
   vpc_id      = aws_vpc.main.id
 
   tags = {
