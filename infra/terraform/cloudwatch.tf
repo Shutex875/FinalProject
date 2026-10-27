@@ -42,7 +42,7 @@ resource "aws_cloudwatch_metric_alarm" "app_instance_high_cpu" {
 }
 resource "aws_sns_topic" "alerts" {
   name              = "${var.project_name}-alerts"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = aws_kms_key.s3.arn
 }
 
 resource "aws_sns_topic_policy" "alerts" {
