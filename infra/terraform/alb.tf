@@ -36,11 +36,12 @@ resource "aws_vpc_security_group_egress_rule" "alb_egress" {
 }
 
 resource "aws_lb" "main" {
-  name               = "${var.project_name}-${var.environment}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets            = aws_subnet.public[*].id
+  name                       = "${var.project_name}-${var.environment}-alb"
+  internal                   = false
+  load_balancer_type         = "application"
+  drop_invalid_header_fields = true
+  security_groups            = [aws_security_group.alb.id]
+  subnets                    = aws_subnet.public[*].id
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-alb"
