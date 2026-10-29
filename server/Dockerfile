@@ -1,21 +1,18 @@
-﻿FROM node:18-alpine
+﻿FROM node:24-alpine
 
 WORKDIR /app
 
-# Зависимости
-COPY package*.json ./
-RUN npm ci --silent
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
 
-# Оптимизация кэша: Prisma генерируется до копирования всего кода
-COPY prisma ./prisma/
-RUN npx prisma generate
+COPY prisma/schema.prisma ./prisma/schema.prisma
+RUN ./node_modules/.bin/prisma generate
 
-# Исходный код и переключение на пользователя node
 COPY . .
-RUN chown -R node:node /app
+ENV NODE_ENV=production
 
 USER node
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+CMD ["node", "index.js"]

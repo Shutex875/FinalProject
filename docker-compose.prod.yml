@@ -11,7 +11,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-    command: sh -c "npx prisma migrate deploy && npm start"
+    command: sh -c "./node_modules/.bin/prisma migrate deploy && exec node index.js"
     expose:
       - "5000"
     restart: unless-stopped
