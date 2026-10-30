@@ -136,7 +136,6 @@ variable "cloudwatch_log_retention_days" {
 variable "telegram_bot_token" {
   description = "Telegram bot token; stored in Terraform state and Lambda environment."
   type        = string
-  default     = "8847762567:AAHK4bkFnVZ90kRdAyVNqPaNqvd2Z4JwsoM"
   sensitive   = true
   nullable    = false
 }
@@ -144,7 +143,6 @@ variable "telegram_bot_token" {
 variable "telegram_chat_id" {
   description = "Telegram destination chat ID."
   type        = string
-  default     = "7268791599"
   sensitive   = true
   nullable    = false
 }
