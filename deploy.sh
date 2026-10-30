@@ -29,7 +29,7 @@ deploy_on_instance() {
   HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-180}"
 
   [[ -n "$ARTIFACTS_BUCKET" ]] || die 'ARTIFACTS_BUCKET is required on the EC2 instance.'
-  [[ "$release" == current || "$release" =~ ^[0-9a-f]{40}$ ]] || die 'Pass current or a full 40-character Git SHA.'
+  [[ "$release" == current || "$release" =~ ^[0-9a-f]{40}(-[1-9][0-9]*)?$ ]] || die 'Pass current, a full Git SHA, or SHA-attempt.'
   require_command aws
   require_command docker
 
@@ -56,7 +56,7 @@ deploy_on_instance() {
   docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
 
   until docker compose --env-file .env -f docker-compose.prod.yml exec -T server \
-      node -e "fetch('http://127.0.0.1:5000/').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"; do
+      node -e "fetch('http://127.0.0.1:5000/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; do
     if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
       docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 server >&2
       die "Health check on port 5000 failed after ${HEALTH_TIMEOUT_SECONDS} seconds."
@@ -68,7 +68,7 @@ deploy_on_instance() {
   printf 'Deployment healthy for release %s.\n' "$release"
 }
 
-if [[ $# -eq 1 && ( "$1" == current || "$1" =~ ^[0-9a-f]{40}$ ) ]]; then
+if [[ $# -eq 1 && ( "$1" == current || "$1" =~ ^[0-9a-f]{40}(-[1-9][0-9]*)?$ ) ]]; then
   deploy_on_instance "$1"
   exit 0
 fi
@@ -147,7 +147,7 @@ docker compose --env-file .env -f docker-compose.prod.yml up -d --build --remove
 
 elapsed=0
 until docker compose --env-file .env -f docker-compose.prod.yml exec -T server \
-    node -e "fetch('http://127.0.0.1:5000/').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"; do
+    node -e "fetch('http://127.0.0.1:5000/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; do
   if (( elapsed >= HEALTH_TIMEOUT_SECONDS )); then
     docker compose --env-file .env -f docker-compose.prod.yml logs --tail=100 server >&2
     printf 'Health check on port 5000 failed after %s seconds.\n' "$HEALTH_TIMEOUT_SECONDS" >&2
@@ -178,7 +178,7 @@ case "$DEPLOY_METHOD" in
     REMOTE_PACKAGE="/tmp/deploy-${IMAGE_TAG}.tar.gz"
     scp "${SSH_ARGS[@]}" "$WORK_DIR/deploy-package.tar.gz" "${SSH_TARGET}:${REMOTE_PACKAGE}"
 
-    REMOTE_COMMAND="mkdir -p $(quote_remote "$DEPLOY_DIR") && tar -xzf $(quote_remote "$REMOTE_PACKAGE") -C $(quote_remote "$DEPLOY_DIR") && rm -f $(quote_remote "$REMOTE_PACKAGE") && env APP_DIR=$(quote_remote "$DEPLOY_DIR") AWS_REGION=$(quote_remote "$AWS_REGION") ECR_REPO_URL=$(quote_remote "$ECR_REPO_URL") IMAGE_TAG=$(quote_remote "$IMAGE_TAG") HEALTH_TIMEOUT_SECONDS=$(quote_remote "$HEALTH_TIMEOUT_SECONDS") bash $(quote_remote "$DEPLOY_DIR/deploy-remote.sh")"
+    REMOTE_COMMAND="mkdir -p $(quote_remote "$DEPLOY_DIR") && tar -xzf $(quote_remote "$REMOTE_PACKAGE") -C $(quote_remote "$DEPLOY_DIR") && rm -f $(quote_remote "$REMOTE_PACKAGE") && env APP_DIR=$(quote_remote "$DEPLOY_DIR") COMPOSE_PROJECT_NAME=$(quote_remote "$COMPOSE_PROJECT_NAME") AWS_REGION=$(quote_remote "$AWS_REGION") ECR_REPO_URL=$(quote_remote "$ECR_REPO_URL") IMAGE_TAG=$(quote_remote "$IMAGE_TAG") HEALTH_TIMEOUT_SECONDS=$(quote_remote "$HEALTH_TIMEOUT_SECONDS") bash $(quote_remote "$DEPLOY_DIR/deploy-remote.sh")"
     ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "$REMOTE_COMMAND"
     ;;
 
