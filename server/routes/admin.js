@@ -7,11 +7,10 @@
 
 import express from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import prisma from '../prismaClient.js';
 import auth from '../middleware/auth.js';
 import checkRole from '../middleware/checkRole.js';
+import { uploadToS3 } from '../utils/s3.js';
 import {
   roleRule,
   isBlockedRule,
@@ -24,22 +23,19 @@ import {
 
 const router = express.Router();
 
-// Настройка multer для загрузки изображений
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(process.cwd(), '../client/public/images');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+// Хранение файла в оперативной памяти перед отправкой в S3 (Stateless)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
     }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
   },
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB
 
 router.use(auth);
 router.use(checkRole(['ADMIN']));
@@ -54,12 +50,12 @@ router.get('/stats', async (req, res) => {
       prisma.order.findMany({
         take: 7,
         orderBy: { createdAt: 'desc' },
-        select: { total: true, createdAt: true }
-      })
+        select: { total: true, createdAt: true },
+      }),
     ]);
-    const salesData = latestOrders.reverse().map(order => ({
+    const salesData = latestOrders.reverse().map((order) => ({
       name: new Date(order.createdAt).toLocaleDateString(),
-      total: order.total
+      total: order.total,
     }));
     res.json({
       summary: [
@@ -67,7 +63,7 @@ router.get('/stats', async (req, res) => {
         { title: 'Orders', value: orderCount },
         { title: 'Products', value: productCount },
       ],
-      salesData: salesData.length > 0 ? salesData : [{ name: 'Jan', total: 0 }, { name: 'Feb', total: 0 }]
+      salesData: salesData.length > 0 ? salesData : [{ name: 'Jan', total: 0 }, { name: 'Feb', total: 0 }],
     });
   } catch (err) {
     console.error('🔥 Stats error:', err);
@@ -87,7 +83,8 @@ router.get('/categories', async (req, res) => {
 });
 
 // ==================== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ====================
-router.get('/users',
+router.get(
+  '/users',
   searchQueryRule(),
   pageQueryRule(),
   limitQueryRule(),
@@ -117,7 +114,8 @@ router.get('/users',
   }
 );
 
-router.put('/users/:id/role',
+router.put(
+  '/users/:id/role',
   userIdParamRule(),
   roleRule(),
   handleValidationErrors,
@@ -140,7 +138,8 @@ router.put('/users/:id/role',
   }
 );
 
-router.put('/users/:id/block',
+router.put(
+  '/users/:id/block',
   userIdParamRule(),
   isBlockedRule(),
   handleValidationErrors,
@@ -161,7 +160,8 @@ router.put('/users/:id/block',
   }
 );
 
-router.delete('/users/:id',
+router.delete(
+  '/users/:id',
   userIdParamRule(),
   handleValidationErrors,
   async (req, res) => {
@@ -181,7 +181,8 @@ router.delete('/users/:id',
 );
 
 // ==================== УПРАВЛЕНИЕ ТОВАРАМИ ====================
-router.get('/products',
+router.get(
+  '/products',
   pageQueryRule(),
   limitQueryRule(),
   handleValidationErrors,
@@ -264,19 +265,26 @@ router.delete('/products/:id', async (req, res) => {
   }
 });
 
-// Загрузка изображения
-router.post('/upload', upload.single('image'), (req, res) => {
+// Загрузка изображения в S3
+router.post('/upload', upload.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image file uploaded' });
   }
-  const imageUrl = `/images/${req.file.filename}`;
-  res.json({ imageUrl });
+
+  try {
+    const imageUrl = await uploadToS3(req.file, 'products');
+    res.json({ imageUrl });
+  } catch (err) {
+    console.error('🔥 Error uploading image to S3:', err);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
 });
 
 // ==================== УПРАВЛЕНИЕ ЗАКАЗАМИ ====================
 const ORDER_STATUSES = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
 
-router.get('/orders',
+router.get(
+  '/orders',
   pageQueryRule(),
   limitQueryRule(),
   handleValidationErrors,
