@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "client" {
-  name                 = "${var.project_name}-${var.environment}-client"
+  name                 = "${local.name_prefix}-client"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -11,15 +11,12 @@ resource "aws_ecr_repository" "client" {
   }
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-client"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-client"
   }
 }
 
 resource "aws_ecr_repository" "server" {
-  name                 = "${var.project_name}-${var.environment}-server"
+  name                 = "${local.name_prefix}-server"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -31,9 +28,6 @@ resource "aws_ecr_repository" "server" {
   }
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-server"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-server"
   }
 }

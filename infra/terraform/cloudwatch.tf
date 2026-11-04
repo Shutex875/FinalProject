@@ -9,8 +9,7 @@ resource "aws_cloudwatch_log_group" "app" {
   retention_in_days = var.cloudwatch_log_retention_days
 
   tags = {
-    Name    = "${local.name_prefix}-app-logs"
-    Project = var.project_name
+    Name = "${local.name_prefix}-app-logs"
   }
 }
 
@@ -36,8 +35,7 @@ resource "aws_cloudwatch_metric_alarm" "app_instance_high_cpu" {
   treat_missing_data = "missing"
 
   tags = {
-    Name    = "${local.name_prefix}-app-instance-high-cpu"
-    Project = var.project_name
+    Name = "${local.name_prefix}-app-instance-high-cpu"
   }
 }
 resource "aws_sns_topic" "alerts" {

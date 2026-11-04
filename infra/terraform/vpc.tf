@@ -1,8 +1,3 @@
-locals {
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, 2)
-  name_prefix        = "${var.project_name}-${var.environment}"
-}
-
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -20,7 +15,7 @@ resource "aws_internet_gateway" "main" {
 # This app host intentionally receives a public IP to serve the public web application.
 #trivy:ignore:AWS-0164
 resource "aws_subnet" "public" {
-  count = 2
+  count = length(var.public_subnet_cidrs)
 
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
@@ -31,7 +26,7 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_subnet" "private" {
-  count = 2
+  count = length(var.private_subnet_cidrs)
 
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.private_subnet_cidrs[count.index]
@@ -53,7 +48,7 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count = 2
+  count = length(var.public_subnet_cidrs)
 
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
@@ -67,7 +62,7 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route_table_association" "private" {
-  count = 2
+  count = length(var.private_subnet_cidrs)
 
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id

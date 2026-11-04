@@ -46,7 +46,6 @@ resource "aws_instance" "app" {
   tags = {
     Name     = "${local.name_prefix}-app"
     ImageTag = var.image_tag
-    Project  = var.project_name
   }
 }
 

@@ -4,9 +4,7 @@ resource "aws_security_group" "ec2" {
   vpc_id      = aws_vpc.main.id
 
   tags = {
-    Name        = "${local.name_prefix}-ec2-sg"
-    Environment = var.environment
-    Project     = var.project_name
+    Name = "${local.name_prefix}-ec2-sg"
   }
 }
 

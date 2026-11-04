@@ -16,6 +16,18 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "domain_name" {
+  description = "Application domain and existing public Route 53 hosted zone name; requires an issued ACM certificate in aws_region."
+  type        = string
+  default     = "deskshop.vouk.dev"
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.domain_name)) > 0 && var.domain_name == trimspace(var.domain_name) && !endswith(var.domain_name, ".")
+    error_message = "Set a non-empty domain without surrounding whitespace or a trailing dot."
+  }
+}
+
 variable "vpc_cidr" {
   description = "IPv4 CIDR block for the VPC."
   type        = string

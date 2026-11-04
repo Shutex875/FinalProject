@@ -4,17 +4,17 @@ data "aws_caller_identity" "current" {}
 
 # --- Customer-managed KMS key for S3 encryption (all app buckets) ------
 resource "aws_kms_key" "s3" {
-  description             = "Customer-managed key for S3 bucket encryption in ${var.project_name}-${var.environment}."
+  description             = "Customer-managed key for S3 bucket encryption in ${local.name_prefix}."
   enable_key_rotation     = true
   deletion_window_in_days = 7
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-s3"
+    Name = "${local.name_prefix}-s3"
   }
 }
 
 resource "aws_kms_alias" "s3" {
-  name          = "alias/${var.project_name}-${var.environment}-s3"
+  name          = "alias/${local.name_prefix}-s3"
   target_key_id = aws_kms_key.s3.key_id
 }
 
@@ -23,16 +23,13 @@ resource "aws_kms_alias" "s3" {
 # Публичная раздача статики должна идти через CloudFront + OAC (см. ниже
 # заготовку политики), сам бакет при этом остаётся приватным.
 resource "aws_s3_bucket" "images" {
-  bucket = "${var.project_name}-${var.environment}-images-${data.aws_caller_identity.current.account_id}"
+  bucket = "${local.name_prefix}-images-${data.aws_caller_identity.current.account_id}"
 
   # Позволяет terraform destroy удалять бакет с объектами.
   force_destroy = true
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-images"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-images"
   }
 }
 
@@ -81,14 +78,11 @@ resource "aws_s3_bucket_versioning" "images" {
 # --- Логирование доступа в отдельный бакет ---------------------------------
 # Создаём отдельный приватный бакет для access-логов.
 resource "aws_s3_bucket" "images_logs" {
-  bucket        = "${var.project_name}-${var.environment}-images-logs-${data.aws_caller_identity.current.account_id}"
+  bucket        = "${local.name_prefix}-images-logs-${data.aws_caller_identity.current.account_id}"
   force_destroy = true
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-images-logs"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-images-logs"
   }
 }
 

@@ -15,10 +15,7 @@ resource "aws_iam_role" "ec2" {
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 
   tags = {
-    Name        = "${local.name_prefix}-ec2-role"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-ec2-role"
   }
 }
 
@@ -42,10 +39,7 @@ resource "aws_iam_policy" "s3_access" {
   name        = "${local.name_prefix}-s3-images-policy"
   description = "Allows EC2 to manage images in the dedicated S3 bucket."
   tags = {
-    Name        = "${local.name_prefix}-s3-images-policy"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-s3-images-policy"
   }
 
   policy = jsonencode({

@@ -1,11 +1,8 @@
 resource "aws_s3_bucket" "artifacts" {
-  bucket = "${var.project_name}-${var.environment}-artifacts-${data.aws_caller_identity.current.account_id}"
+  bucket = "${local.name_prefix}-artifacts-${data.aws_caller_identity.current.account_id}"
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-artifacts"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
+    Name = "${local.name_prefix}-artifacts"
   }
 }
 
